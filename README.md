@@ -2,6 +2,10 @@
 
 A CLI tool to manage draw.io diagrams with Confluence Server/Data Center integration.
 
+> **Note:** If you have the official [draw.io Confluence plugin](https://marketplace.atlassian.com/apps/1210933/draw-io-diagrams-for-confluence) installed, use that instead - it provides native integration with live editing directly in Confluence.
+>
+> This tool is for situations where you **don't have the plugin installed, or can't install it** (e.g., restricted marketplace access, cost constraints, self-hosted instances without plugin support). It provides a workaround by storing `.drawio` files as attachments and publishing exported images to pages.
+
 ## Features
 
 - **Confluence as source of truth**: Store `.drawio` files as page attachments
@@ -14,7 +18,7 @@ A CLI tool to manage draw.io diagrams with Confluence Server/Data Center integra
 
 ```bash
 # From source
-git clone https://github.com/yourusername/drawio-confluence-cli.git
+git clone https://github.com/GanizaniSitara/drawio-confluence-cli.git
 cd drawio-confluence-cli
 pip install -e .
 
