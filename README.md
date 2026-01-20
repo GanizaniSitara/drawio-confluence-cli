@@ -139,6 +139,7 @@ Configuration is stored in `.drawio-cli/config.yaml`:
 confluence:
   base_url: "https://wiki.company.com"
   auth_type: "pat"  # "pat" for Personal Access Token, "basic" for username/password
+  ssl_verify: true  # Set to false for self-signed certs or environments without SSL
 
 editor:
   prefer: "web"  # or "desktop"
@@ -147,6 +148,16 @@ editor:
 export:
   default_format: "png"
   png_scale: 2  # 2x for retina displays
+```
+
+### SSL Verification
+
+For enterprise environments with self-signed certificates or no SSL, set `ssl_verify: false` in your config:
+
+```yaml
+confluence:
+  base_url: "http://wiki.company.com"  # or https with self-signed cert
+  ssl_verify: false
 ```
 
 ### Authentication

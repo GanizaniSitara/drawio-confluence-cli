@@ -19,6 +19,7 @@ class ConfluenceConfig:
 
     base_url: str = ""
     auth_type: str = "pat"  # "pat" or "basic"
+    ssl_verify: bool = True  # Set to False for self-signed certs / no SSL
 
     @property
     def pat(self) -> Optional[str]:
@@ -113,6 +114,7 @@ class Config:
             "confluence": {
                 "base_url": self.confluence.base_url,
                 "auth_type": self.confluence.auth_type,
+                "ssl_verify": self.confluence.ssl_verify,
             },
             "editor": {
                 "prefer": self.editor.prefer,
@@ -139,6 +141,7 @@ class Config:
             config.confluence = ConfluenceConfig(
                 base_url=conf.get("base_url", ""),
                 auth_type=conf.get("auth_type", "pat"),
+                ssl_verify=conf.get("ssl_verify", True),
             )
 
         if "editor" in data:

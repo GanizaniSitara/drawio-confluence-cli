@@ -1,6 +1,7 @@
 """Confluence REST API client for Server/Data Center."""
 
 import re
+import urllib3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -68,6 +69,13 @@ class ConfluenceClient:
         self.base_url = config.base_url.rstrip("/")
         self.api_url = f"{self.base_url}/rest/api"
         self.session = requests.Session()
+
+        # Configure SSL verification
+        self.session.verify = config.ssl_verify
+        if not config.ssl_verify:
+            # Suppress InsecureRequestWarning when SSL verification is disabled
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
         self._setup_auth()
 
     def _setup_auth(self) -> None:
