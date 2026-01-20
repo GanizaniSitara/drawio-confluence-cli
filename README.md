@@ -37,33 +37,56 @@ drawio-cli init --base-url https://wiki.company.com
 
 ### 2. Set up authentication
 
+**Option A: Personal Access Token (recommended)**
 ```bash
-# Using Personal Access Token (recommended)
 export CONFLUENCE_PAT="your-token-here"
+```
 
-# Or using basic auth
+**Option B: Username/Password**
+```bash
+# First, edit .drawio-cli/config.yaml and change auth_type to "basic":
+#   auth_type: "basic"
+# Then set the environment variables:
 export CONFLUENCE_USER="your-username"
 export CONFLUENCE_PASS="your-password"
 ```
 
-### 3. Download an existing diagram
+### 3. Choose your workflow
+
+**Workflow A: Download an existing diagram from Confluence**
+
+If you already have a `.drawio` file attached to a Confluence page:
 
 ```bash
+# Download the diagram
 drawio-cli checkout https://wiki.company.com/display/SPACE/PageName
-```
 
-### 4. Edit the diagram
-
-```bash
-# Opens in desktop app (if installed) or opens app.diagrams.net
+# Edit it
 drawio-cli edit diagram.drawio
-```
 
-### 5. Publish changes
-
-```bash
+# Publish changes back
 drawio-cli publish diagram.drawio
 ```
+
+**Workflow B: Create a new diagram and publish to Confluence**
+
+If you're starting from scratch:
+
+```bash
+# Create a new diagram linked to an existing Confluence page
+drawio-cli new architecture --page https://wiki.company.com/display/SPACE/PageName
+
+# Edit the diagram
+drawio-cli edit architecture.drawio
+
+# Export to PNG (automatic with desktop app, or export manually from web)
+drawio-cli export architecture.drawio
+
+# Publish to Confluence (uploads .drawio + image, updates page content)
+drawio-cli publish architecture.drawio
+```
+
+The Confluence page must already exist - this tool attaches diagrams to existing pages, it doesn't create new pages.
 
 ## Commands
 
@@ -115,7 +138,7 @@ Configuration is stored in `.drawio-cli/config.yaml`:
 ```yaml
 confluence:
   base_url: "https://wiki.company.com"
-  auth_type: "pat"  # or "basic"
+  auth_type: "pat"  # "pat" for Personal Access Token, "basic" for username/password
 
 editor:
   prefer: "web"  # or "desktop"
@@ -126,22 +149,37 @@ export:
   png_scale: 2  # 2x for retina displays
 ```
 
-### Environment Variables
+### Authentication
 
-| Variable | Description |
-|----------|-------------|
-| `CONFLUENCE_PAT` | Personal Access Token for Confluence |
-| `CONFLUENCE_USER` | Username for basic authentication |
-| `CONFLUENCE_PASS` | Password for basic authentication |
+The `auth_type` setting determines which environment variables are used:
+
+| `auth_type` | Environment Variables | Description |
+|-------------|----------------------|-------------|
+| `pat` (default) | `CONFLUENCE_PAT` | Personal Access Token - recommended for Confluence Server/DC 7.9+ |
+| `basic` | `CONFLUENCE_USER` + `CONFLUENCE_PASS` | Username and password - use if PAT not available |
+
+**Important:** If using username/password, you must edit `config.yaml` and change `auth_type: "basic"` before setting the environment variables.
 
 ## Workflow
 
-### Typical workflow
+### Working with existing diagrams
 
-1. **Checkout** an existing diagram or **create** a new one
-2. **Edit** the diagram locally
-3. **Export** to PNG/SVG (automatic with desktop app, manual otherwise)
-4. **Publish** to update Confluence
+If a `.drawio` file is already attached to a Confluence page:
+
+1. `checkout` - download the diagram from Confluence
+2. `edit` - make changes locally
+3. `publish` - upload changes back to Confluence
+
+### Creating new diagrams
+
+To add a new diagram to an existing Confluence page:
+
+1. `new --page <url>` - create a new `.drawio` file linked to the page
+2. `edit` - design your diagram
+3. `export` - export to PNG/SVG (automatic with desktop app)
+4. `publish` - upload diagram and image to Confluence
+
+**Note:** The Confluence page must already exist. This tool doesn't create pages - it only attaches diagrams to existing pages.
 
 ### What happens when you publish
 
