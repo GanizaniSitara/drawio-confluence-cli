@@ -9,10 +9,23 @@ from urllib.parse import quote
 import requests
 
 from .config import ExportConfig
-from .editor import get_desktop_path, EditorConfig
+from .editor import get_desktop_path, EditorConfig, _is_wsl
 
 # draw.io public export API endpoint
 DRAWIO_EXPORT_API = "https://convert.diagrams.net/node/export"
+
+
+def _wsl_to_windows_path(path: Path) -> str:
+    """Convert a WSL path to Windows path format.
+
+    /mnt/c/Users/... -> C:\\Users\\...
+    """
+    path_str = str(path)
+    if path_str.startswith("/mnt/") and len(path_str) > 6:
+        drive = path_str[5].upper()
+        rest = path_str[6:].replace("/", "\\")
+        return f"{drive}:{rest}"
+    return path_str
 
 
 class ExportError(Exception):
@@ -82,12 +95,21 @@ def export_with_cli(
         output = source.parent / get_export_filename(source, format)
     output = output.resolve()
 
+    # Convert paths for WSL if using Windows executable
+    is_wsl = _is_wsl()
+    if is_wsl and str(app_path).endswith(".exe"):
+        source_arg = _wsl_to_windows_path(source)
+        output_arg = _wsl_to_windows_path(output)
+    else:
+        source_arg = str(source)
+        output_arg = str(output)
+
     # Build command
     cmd = [
         str(app_path),
         "-x",  # Export mode
         "-f", format,
-        "-o", str(output),
+        "-o", output_arg,
     ]
 
     # Add scale for PNG
@@ -101,7 +123,7 @@ def export_with_cli(
         cmd.append("-a")
 
     # Add source file
-    cmd.append(str(source))
+    cmd.append(source_arg)
 
     try:
         result = subprocess.run(

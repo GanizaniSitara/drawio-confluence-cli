@@ -18,6 +18,15 @@ class EditorError(Exception):
     pass
 
 
+def _is_wsl() -> bool:
+    """Check if running in Windows Subsystem for Linux."""
+    try:
+        with open("/proc/version", "r") as f:
+            return "microsoft" in f.read().lower()
+    except (FileNotFoundError, PermissionError):
+        return False
+
+
 def find_desktop_app() -> Optional[Path]:
     """Find the draw.io desktop application."""
     system = platform.system()
@@ -34,17 +43,17 @@ def find_desktop_app() -> Optional[Path]:
             if path.exists():
                 return path
 
-    elif system == "Darwin":
-        # macOS
-        candidates = [
-            Path("/Applications/draw.io.app/Contents/MacOS/draw.io"),
-            Path.home() / "Applications" / "draw.io.app" / "Contents" / "MacOS" / "draw.io",
-        ]
-        for path in candidates:
-            if path.exists():
-                return path
-
     elif system == "Linux":
+        # Check for WSL environment first - can use Windows draw.io
+        if _is_wsl():
+            wsl_candidates = [
+                Path("/mnt/c/Program Files/draw.io/draw.io.exe"),
+                Path("/mnt/c/Users") / os.environ.get("USER", "") / "AppData/Local/Programs/draw.io/draw.io.exe",
+            ]
+            for path in wsl_candidates:
+                if path.exists():
+                    return path
+
         # Linux - check if drawio is in PATH
         drawio_path = shutil.which("drawio")
         if drawio_path:
@@ -56,6 +65,18 @@ def find_desktop_app() -> Optional[Path]:
             Path("/usr/local/bin/drawio"),
             Path("/opt/drawio/drawio"),
             Path.home() / ".local" / "bin" / "drawio",
+        ]
+        for path in candidates:
+            if path.exists():
+                return path
+
+        return None
+
+    elif system == "Darwin":
+        # macOS
+        candidates = [
+            Path("/Applications/draw.io.app/Contents/MacOS/draw.io"),
+            Path.home() / "Applications" / "draw.io.app" / "Contents" / "MacOS" / "draw.io",
         ]
         for path in candidates:
             if path.exists():
