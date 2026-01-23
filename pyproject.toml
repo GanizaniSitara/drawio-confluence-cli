@@ -33,10 +33,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+export = [
+    "playwright>=1.40",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "responses>=0.23",
+    "playwright>=1.40",
 ]
 
 [project.scripts]

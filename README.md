@@ -223,16 +223,35 @@ The tool automatically extracts hyperlinks from your diagrams. Links can be adde
 
 These links are preserved in the `.drawio` file and listed on the Confluence page when published.
 
-## Desktop App vs Web
+## Export Methods
 
-**Desktop app** (recommended):
-- Automatic export via CLI
+The tool supports multiple export methods, tried in order until one succeeds:
+
+### 1. Desktop App CLI (fastest)
+- Requires the draw.io desktop app installed
+- Install from https://www.drawio.com/
+- Fastest and most reliable option
+
+### 2. Headless Browser Export (no desktop app needed)
+- Uses Playwright with the draw.io web viewer
+- Install with: `pip install drawio-confluence-cli[export]`
+- Then run: `playwright install chromium`
+- Fully automated, no manual steps required
+
+### 3. draw.io Export API
+- Attempts to use the public draw.io export service
+- No installation required but depends on external service availability
+
+If all automated methods fail, you'll see an error with details about what went wrong.
+
+## Desktop App vs Web Editor
+
+**Desktop app** (recommended for editing):
 - Direct file editing
 - Install from https://www.drawio.com/
 
-**Web only**:
+**Web editor**:
 - Works everywhere
-- Manual export required (File → Export)
 - Open with `drawio-cli edit --web`
 
 ## Development
@@ -283,18 +302,19 @@ Check that your `CONFLUENCE_PAT` (or `CONFLUENCE_USER`/`CONFLUENCE_PASS`) enviro
 
 ### "Desktop app not found"
 
-The desktop app is optional. You can:
+The desktop app is optional for editing. You can:
 - Install it from https://www.drawio.com/
 - Or use `--web` flag to use the web editor
-- Or export manually from app.diagrams.net
 
 ### Export fails
 
-Without the desktop app, exports must be done manually:
-1. Open your diagram at app.diagrams.net
-2. File → Export as → PNG (or SVG)
-3. Save the file next to your `.drawio` file
-4. Run `drawio-cli publish` again
+If export fails, install the headless export dependencies:
+```bash
+pip install drawio-confluence-cli[export]
+playwright install chromium
+```
+
+This enables automated export using a headless browser without needing the desktop app.
 
 ## License
 

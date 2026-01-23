@@ -4,9 +4,15 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
+
+import requests
 
 from .config import ExportConfig
 from .editor import get_desktop_path, EditorConfig
+
+# draw.io public export API endpoint
+DRAWIO_EXPORT_API = "https://convert.diagrams.net/node/export"
 
 
 class ExportError(Exception):
@@ -127,6 +133,235 @@ def export_with_cli(
         raise ExportError(f"Could not execute draw.io app: {app_path}")
 
 
+def export_with_api(
+    source: Path,
+    output: Optional[Path] = None,
+    format: str = "png",
+    scale: int = 2,
+    page: int = 0,
+) -> ExportResult:
+    """Export diagram using the draw.io public export API.
+
+    Uses https://convert.diagrams.net/node/export to render diagrams
+    server-side without requiring the desktop app.
+
+    Args:
+        source: Source .drawio file
+        output: Output file path (optional, defaults to same directory)
+        format: Export format (png, svg, pdf)
+        scale: Scale factor for export
+        page: Page index to export (0-indexed)
+
+    Returns:
+        ExportResult with export details
+    """
+    source = source.resolve()
+    if not source.exists():
+        raise ExportError(f"Source file not found: {source}")
+
+    # Determine output path
+    if output is None:
+        output = source.parent / get_export_filename(source, format)
+    output = output.resolve()
+
+    # Read the diagram XML
+    xml_content = source.read_text(encoding="utf-8")
+
+    # Prepare the POST data
+    data = {
+        "format": format,
+        "xml": xml_content,
+        "scale": str(scale),
+        "pageIndex": str(page),
+    }
+
+    # Add format-specific options
+    if format == "png":
+        data["transparent"] = "false"
+    elif format == "pdf":
+        data["allPages"] = "false"
+
+    try:
+        response = requests.post(
+            DRAWIO_EXPORT_API,
+            data=data,
+            timeout=60,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        )
+
+        if response.status_code != 200:
+            raise ExportError(
+                f"Export API returned status {response.status_code}: {response.text[:200]}"
+            )
+
+        # Check we got binary content back
+        content_type = response.headers.get("content-type", "")
+        if "image" not in content_type and "pdf" not in content_type:
+            raise ExportError(f"Unexpected response type: {content_type}")
+
+        # Write the exported file
+        output.write_bytes(response.content)
+
+        return ExportResult(
+            source_file=source,
+            output_file=output,
+            format=format,
+            method="api",
+        )
+
+    except requests.exceptions.Timeout:
+        raise ExportError("Export API timed out after 60 seconds")
+    except requests.exceptions.ConnectionError as e:
+        raise ExportError(f"Could not connect to export API: {e}")
+    except requests.exceptions.RequestException as e:
+        raise ExportError(f"Export API request failed: {e}")
+
+
+def export_with_playwright(
+    source: Path,
+    output: Optional[Path] = None,
+    format: str = "png",
+    scale: int = 2,
+) -> ExportResult:
+    """Export diagram using Playwright with headless browser.
+
+    Uses the draw.io viewer (viewer.diagrams.net) to render diagrams
+    in a headless browser and export them without requiring the desktop app.
+
+    Args:
+        source: Source .drawio file
+        output: Output file path (optional, defaults to same directory)
+        format: Export format (png, svg, pdf)
+        scale: Scale factor for export
+
+    Returns:
+        ExportResult with export details
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        raise ExportError(
+            "Playwright not installed. Install with: pip install playwright && playwright install chromium"
+        )
+
+    source = source.resolve()
+    if not source.exists():
+        raise ExportError(f"Source file not found: {source}")
+
+    # Determine output path
+    if output is None:
+        output = source.parent / get_export_filename(source, format)
+    output = output.resolve()
+
+    # Read diagram XML and URL-encode it for the viewer URL
+    xml_content = source.read_text(encoding="utf-8")
+    encoded_xml = quote(xml_content, safe="")
+
+    # Build viewer URL - viewer.diagrams.net renders diagrams from URL-encoded XML
+    viewer_url = f"https://viewer.diagrams.net/?highlight=0000ff&nav=0&page=0#R{encoded_xml}"
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(headless=True)
+        except Exception as e:
+            raise ExportError(
+                f"Failed to launch browser. Run 'playwright install chromium' first. Error: {e}"
+            )
+
+        # Create page with appropriate viewport (scaled for high-res export)
+        viewport_width = 1920 * scale // 2
+        viewport_height = 1080 * scale // 2
+        page = browser.new_page(
+            viewport={"width": viewport_width, "height": viewport_height},
+            device_scale_factor=scale,
+        )
+
+        try:
+            # Navigate to the viewer
+            page.goto(viewer_url, timeout=30000, wait_until="networkidle")
+
+            # Wait for diagram to render (the viewer creates an SVG)
+            page.wait_for_selector("svg", timeout=15000)
+
+            # Give extra time for complex diagrams to fully render
+            page.wait_for_timeout(1000)
+
+            if format == "svg":
+                # Extract SVG content from the rendered diagram
+                svg_content = page.evaluate("""
+                    () => {
+                        const svg = document.querySelector('svg');
+                        return svg ? svg.outerHTML : null;
+                    }
+                """)
+                if svg_content:
+                    output.write_text(svg_content, encoding="utf-8")
+                else:
+                    raise ExportError("Failed to extract SVG content")
+
+            elif format == "pdf":
+                # Get diagram dimensions for PDF sizing
+                dims = page.evaluate("""
+                    () => {
+                        const svg = document.querySelector('svg');
+                        if (!svg) return null;
+                        const rect = svg.getBoundingClientRect();
+                        return {width: rect.width, height: rect.height};
+                    }
+                """)
+                if dims and dims.get("width") > 0:
+                    page.pdf(
+                        path=str(output),
+                        width=f"{int(dims['width'] + 40)}px",
+                        height=f"{int(dims['height'] + 40)}px",
+                        print_background=True,
+                    )
+                else:
+                    page.pdf(path=str(output), print_background=True)
+
+            else:  # png, jpg
+                # Get the bounding box of the SVG diagram
+                clip_box = page.evaluate("""
+                    () => {
+                        const svg = document.querySelector('svg');
+                        if (!svg) return null;
+                        const rect = svg.getBoundingClientRect();
+                        // Add some padding
+                        return {
+                            x: Math.max(0, rect.x - 10),
+                            y: Math.max(0, rect.y - 10),
+                            width: rect.width + 20,
+                            height: rect.height + 20
+                        };
+                    }
+                """)
+
+                if clip_box and clip_box.get("width", 0) > 0:
+                    page.screenshot(
+                        path=str(output),
+                        clip=clip_box,
+                        type="png" if format == "png" else "jpeg",
+                    )
+                else:
+                    # Fall back to full page screenshot
+                    page.screenshot(path=str(output), full_page=True)
+
+        finally:
+            browser.close()
+
+    if not output.exists():
+        raise ExportError(f"Export completed but output file not found: {output}")
+
+    return ExportResult(
+        source_file=source,
+        output_file=output,
+        format=format,
+        method="playwright",
+    )
+
+
 def find_exported_file(
     source: Path,
     format: str = "png",
@@ -185,8 +420,10 @@ def export_diagram(
 ) -> ExportResult:
     """Export a diagram to an image format.
 
-    Attempts CLI export if desktop app is available, otherwise
-    returns instructions for manual export.
+    Attempts export in order of preference:
+    1. Desktop CLI (if available) - fastest, most reliable
+    2. draw.io public API - no local install required
+    3. Playwright headless browser - requires playwright package
 
     Args:
         source: Source .drawio file
@@ -224,25 +461,48 @@ def export_diagram(
     # Get scale from config
     scale = export_config.png_scale if export_config else 2
 
-    # Try CLI export
+    errors = []
+
+    # Method 1: Try CLI export (desktop app)
     app_path = get_desktop_path(editor_config)
     if app_path:
-        return export_with_cli(
+        try:
+            return export_with_cli(
+                source=source,
+                output=output,
+                format=format,
+                scale=scale,
+                editor_config=editor_config,
+            )
+        except ExportError as e:
+            errors.append(f"Desktop CLI: {e}")
+
+    # Method 2: Try draw.io public API
+    try:
+        return export_with_api(
             source=source,
             output=output,
             format=format,
             scale=scale,
-            editor_config=editor_config,
         )
+    except ExportError as e:
+        errors.append(f"API: {e}")
 
-    # No desktop app - manual export required
+    # Method 3: Try Playwright-based export (headless browser)
+    try:
+        return export_with_playwright(
+            source=source,
+            output=output,
+            format=format,
+            scale=scale,
+        )
+    except ExportError as e:
+        errors.append(f"Playwright: {e}")
+
+    # All methods failed
     raise ExportError(
-        f"Desktop app not available for CLI export.\n"
-        f"Please export manually:\n"
-        f"  1. Open {source.name} in app.diagrams.net\n"
-        f"  2. File → Export as → {format.upper()}\n"
-        f"  3. Save as: {output}\n"
-        f"Then run this command again."
+        f"All export methods failed for {source.name}:\n"
+        + "\n".join(f"  - {err}" for err in errors)
     )
 
 
