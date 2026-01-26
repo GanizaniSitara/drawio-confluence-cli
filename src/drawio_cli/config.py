@@ -20,21 +20,25 @@ class ConfluenceConfig:
     base_url: str = ""
     auth_type: str = "pat"  # "pat" or "basic"
     ssl_verify: bool = True  # Set to False for self-signed certs / no SSL
+    # Credentials can be set in config or via environment variables (env vars take precedence)
+    _pat: Optional[str] = None
+    _username: Optional[str] = None
+    _password: Optional[str] = None
 
     @property
     def pat(self) -> Optional[str]:
-        """Get Personal Access Token from environment."""
-        return os.environ.get("CONFLUENCE_PAT")
+        """Get Personal Access Token (env var takes precedence over config)."""
+        return os.environ.get("CONFLUENCE_PAT") or self._pat
 
     @property
     def username(self) -> Optional[str]:
-        """Get username from environment."""
-        return os.environ.get("CONFLUENCE_USER")
+        """Get username (env var takes precedence over config)."""
+        return os.environ.get("CONFLUENCE_USER") or self._username
 
     @property
     def password(self) -> Optional[str]:
-        """Get password from environment."""
-        return os.environ.get("CONFLUENCE_PASS")
+        """Get password (env var takes precedence over config)."""
+        return os.environ.get("CONFLUENCE_PASS") or self._password
 
     def get_auth(self) -> tuple[Optional[str], Optional[str]] | str | None:
         """Get authentication credentials based on auth_type."""
@@ -110,12 +114,21 @@ class Config:
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for YAML serialization."""
+        confluence_dict = {
+            "base_url": self.confluence.base_url,
+            "auth_type": self.confluence.auth_type,
+            "ssl_verify": self.confluence.ssl_verify,
+        }
+        # Only include credentials in config if explicitly set (not from env)
+        if self.confluence._pat:
+            confluence_dict["pat"] = self.confluence._pat
+        if self.confluence._username:
+            confluence_dict["username"] = self.confluence._username
+        if self.confluence._password:
+            confluence_dict["password"] = self.confluence._password
+
         return {
-            "confluence": {
-                "base_url": self.confluence.base_url,
-                "auth_type": self.confluence.auth_type,
-                "ssl_verify": self.confluence.ssl_verify,
-            },
+            "confluence": confluence_dict,
             "editor": {
                 "prefer": self.editor.prefer,
                 "desktop_path": self.editor.desktop_path,
@@ -142,6 +155,9 @@ class Config:
                 base_url=conf.get("base_url", ""),
                 auth_type=conf.get("auth_type", "pat"),
                 ssl_verify=conf.get("ssl_verify", True),
+                _pat=conf.get("pat"),
+                _username=conf.get("username"),
+                _password=conf.get("password"),
             )
 
         if "editor" in data:

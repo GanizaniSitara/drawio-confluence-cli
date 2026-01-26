@@ -37,19 +37,36 @@ drawio-cli init --base-url https://wiki.company.com
 
 ### 2. Set up authentication
 
-**Option A: Personal Access Token (recommended)**
-```bash
-export CONFLUENCE_PAT="your-token-here"
+**Option A: Store credentials in config (simpler)**
+
+Edit `.drawio-cli/config.yaml`:
+```yaml
+confluence:
+  base_url: "https://wiki.company.com"
+  auth_type: "pat"
+  pat: "your-personal-access-token"
 ```
 
-**Option B: Username/Password**
+Or for username/password:
+```yaml
+confluence:
+  base_url: "https://wiki.company.com"
+  auth_type: "basic"
+  username: "your-username"
+  password: "your-password"
+```
+
+**Option B: Use environment variables (more secure)**
 ```bash
-# First, edit .drawio-cli/config.yaml and change auth_type to "basic":
-#   auth_type: "basic"
-# Then set the environment variables:
+# For PAT authentication
+export CONFLUENCE_PAT="your-token-here"
+
+# Or for username/password (also set auth_type: "basic" in config)
 export CONFLUENCE_USER="your-username"
 export CONFLUENCE_PASS="your-password"
 ```
+
+Environment variables take precedence over config file values.
 
 ### 3. Choose your workflow
 
@@ -137,11 +154,15 @@ Configuration is stored in `.drawio-cli/config.yaml`:
 confluence:
   base_url: "https://wiki.company.com"
   auth_type: "pat"  # "pat" for Personal Access Token, "basic" for username/password
+  pat: "your-token"  # or use CONFLUENCE_PAT env var
+  # For basic auth:
+  # username: "your-username"  # or use CONFLUENCE_USER env var
+  # password: "your-password"  # or use CONFLUENCE_PASS env var
   ssl_verify: true  # Set to false for self-signed certs or environments without SSL
 
 editor:
-  prefer: "web"  # or "desktop"
-  desktop_path: null  # auto-detected, or set manually
+  prefer: "desktop"  # or "web"
+  desktop_path: "/path/to/draw.io"  # auto-detected on init, or set manually
 
 export:
   default_format: "png"
@@ -160,14 +181,14 @@ confluence:
 
 ### Authentication
 
-The `auth_type` setting determines which environment variables are used:
+Credentials can be stored in `config.yaml` or set via environment variables. Environment variables take precedence.
 
-| `auth_type` | Environment Variables | Description |
-|-------------|----------------------|-------------|
-| `pat` (default) | `CONFLUENCE_PAT` | Personal Access Token - recommended for Confluence Server/DC 7.9+ |
-| `basic` | `CONFLUENCE_USER` + `CONFLUENCE_PASS` | Username and password - use if PAT not available |
+| `auth_type` | Config Fields | Environment Variables |
+|-------------|---------------|----------------------|
+| `pat` (default) | `pat` | `CONFLUENCE_PAT` |
+| `basic` | `username`, `password` | `CONFLUENCE_USER`, `CONFLUENCE_PASS` |
 
-**Important:** If using username/password, you must edit `config.yaml` and change `auth_type: "basic"` before setting the environment variables.
+**Note:** For `basic` auth, set `auth_type: "basic"` in config.
 
 ## Workflow
 
