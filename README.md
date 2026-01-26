@@ -183,10 +183,9 @@ If a `.drawio` file is already attached to a Confluence page:
 
 To add a new diagram to an existing Confluence page:
 
-1. `new --page <url>` - create a new `.drawio` file linked to the page
-2. `edit` - design your diagram
-3. `export` - export to PNG/SVG (automatic with desktop app)
-4. `publish` - upload diagram and image to Confluence
+1. `new --page <url>` - create diagram and open in editor automatically
+2. `export` - export to PNG/SVG (automatic with desktop app)
+3. `publish` - upload diagram and image to Confluence
 
 **Note:** The Confluence page must already exist. This tool doesn't create pages - it only attaches diagrams to existing pages.
 
