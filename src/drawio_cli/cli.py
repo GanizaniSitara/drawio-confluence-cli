@@ -128,6 +128,13 @@ def init(
     ctx.config.save()
 
     console.print(f"\nConfiguration saved to {ctx.config.config_file}")
+
+    # Show draw.io desktop status
+    if ctx.config.editor.desktop_path:
+        console.print(f"[green]✓ Draw.io desktop app detected:[/green] {ctx.config.editor.desktop_path}")
+    else:
+        console.print("[dim]Draw.io desktop app not found - will use web editor[/dim]")
+
     console.print("\n[bold]Next steps:[/bold]")
 
     if auth_type == "pat":
@@ -304,12 +311,18 @@ def checkout(
     default=None,
     help="Output directory (defaults to current directory)",
 )
+@click.option(
+    "--edit/--no-edit",
+    default=True,
+    help="Open diagram in editor after creation (default: yes)",
+)
 @pass_context
 def new(
     ctx: CliContext,
     name: str,
     page_url: Optional[str],
     output: Optional[Path],
+    edit: bool,
 ) -> None:
     """Create a new .drawio diagram."""
     ctx.load()
@@ -348,7 +361,24 @@ def new(
     ctx.state.save()
 
     console.print(f"[green]✓ Created:[/green] {output_path}")
-    console.print(f"\nEdit with: drawio-cli edit {name}")
+
+    # Auto-open in editor if requested
+    if edit:
+        try:
+            method = open_diagram(output_path, ctx.config.editor)
+            if method == "desktop":
+                console.print(f"[green]Opened in desktop app[/green]")
+            else:
+                console.print(f"[green]Opened app.diagrams.net[/green]")
+                console.print(f"\nTo edit {output_path.name}:")
+                console.print("  1. Click File → Open from → Device")
+                console.print(f"  2. Navigate to {output_path.resolve()}")
+                console.print("  3. When done, File → Save (Ctrl+S) to update the file")
+        except EditorError as e:
+            console.print(f"[yellow]Could not open editor:[/yellow] {e}")
+            console.print(f"\nEdit manually with: drawio-cli edit {name}")
+    else:
+        console.print(f"\nEdit with: drawio-cli edit {name}")
 
 
 @main.command()

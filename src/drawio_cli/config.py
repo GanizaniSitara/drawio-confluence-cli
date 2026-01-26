@@ -220,6 +220,9 @@ def load_config(workspace_root: Optional[Path] = None) -> Config:
 
 def init_workspace(path: Optional[Path] = None) -> Config:
     """Initialize a new workspace at the given path."""
+    # Import here to avoid circular imports
+    from .editor import find_desktop_app
+
     if path is None:
         path = Path.cwd()
 
@@ -233,6 +236,13 @@ def init_workspace(path: Optional[Path] = None) -> Config:
     # Create new config
     config = Config()
     config._workspace_root = path
+
+    # Auto-detect draw.io desktop app and save to config if found
+    desktop_app = find_desktop_app()
+    if desktop_app:
+        config.editor.desktop_path = str(desktop_app)
+        config.editor.prefer = "desktop"
+
     config.save()
 
     # Create empty state file
