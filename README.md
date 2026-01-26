@@ -53,7 +53,25 @@ export CONFLUENCE_PASS="your-password"
 
 ### 3. Choose your workflow
 
-**Workflow A: Download an existing diagram from Confluence**
+**Workflow A: Create a new diagram and publish to Confluence**
+
+If you're starting from scratch:
+
+```bash
+# Create a new diagram linked to an existing Confluence page
+# (automatically opens in draw.io desktop if installed)
+drawio-cli new architecture --page https://wiki.company.com/display/SPACE/PageName
+
+# Export to PNG (automatic with desktop app, or export manually from web)
+drawio-cli export architecture.drawio
+
+# Publish to Confluence (uploads .drawio + image, updates page content)
+drawio-cli publish architecture.drawio
+```
+
+The Confluence page must already exist - this tool attaches diagrams to existing pages, it doesn't create new pages.
+
+**Workflow B: Download an existing diagram from Confluence**
 
 If you already have a `.drawio` file attached to a Confluence page:
 
@@ -67,26 +85,6 @@ drawio-cli edit diagram.drawio
 # Publish changes back
 drawio-cli publish diagram.drawio
 ```
-
-**Workflow B: Create a new diagram and publish to Confluence**
-
-If you're starting from scratch:
-
-```bash
-# Create a new diagram linked to an existing Confluence page
-drawio-cli new architecture --page https://wiki.company.com/display/SPACE/PageName
-
-# Edit the diagram
-drawio-cli edit architecture.drawio
-
-# Export to PNG (automatic with desktop app, or export manually from web)
-drawio-cli export architecture.drawio
-
-# Publish to Confluence (uploads .drawio + image, updates page content)
-drawio-cli publish architecture.drawio
-```
-
-The Confluence page must already exist - this tool attaches diagrams to existing pages, it doesn't create new pages.
 
 ## Commands
 
@@ -103,7 +101,7 @@ The Confluence page must already exist - this tool attaches diagrams to existing
 |---------|-------------|
 | `drawio-cli list` | List tracked diagrams and their sync status |
 | `drawio-cli checkout <page-url>` | Download `.drawio` file from a Confluence page |
-| `drawio-cli new <name> [--page <url>]` | Create a new diagram, optionally linked to a page |
+| `drawio-cli new <name> [--page <url>]` | Create a new diagram and open in editor (use `--no-edit` to skip) |
 | `drawio-cli status` | Show detailed status of all tracked diagrams |
 | `drawio-cli links <diagram>` | Show hyperlinks found in a diagram |
 
