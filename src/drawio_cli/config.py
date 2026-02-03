@@ -183,11 +183,54 @@ class Config:
 
         return config
 
-    def save(self) -> None:
+    def save(self, with_comments: bool = False) -> None:
         """Save configuration to config.yaml."""
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.config_file, "w") as f:
-            yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
+
+        if with_comments:
+            # Write config with helpful comments
+            content = self._to_yaml_with_comments()
+            with open(self.config_file, "w") as f:
+                f.write(content)
+        else:
+            with open(self.config_file, "w") as f:
+                yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
+
+    def _to_yaml_with_comments(self) -> str:
+        """Generate YAML config with helpful comments."""
+        lines = [
+            "# drawio-cli configuration",
+            "",
+            "confluence:",
+            f"  base_url: {self.confluence.base_url or ''}",
+            f"  auth_type: {self.confluence.auth_type}  # 'pat' or 'basic'",
+            f"  ssl_verify: {str(self.confluence.ssl_verify).lower()}",
+            "  # Credentials: set here or via CONFLUENCE_PAT / CONFLUENCE_USER+CONFLUENCE_PASS env vars",
+            "  # pat: your-token-here",
+            "",
+            "editor:",
+            f"  prefer: {self.editor.prefer}  # 'desktop' or 'web'",
+            "  # Path to draw.io desktop app. Examples:",
+            "  #   Windows: C:\\Program Files\\draw.io\\draw.io.exe",
+            "  #   Linux:   /usr/bin/drawio",
+            "  #   WSL:     /mnt/c/Program Files/draw.io/draw.io.exe",
+        ]
+        if self.editor.desktop_path:
+            lines.append(f"  desktop_path: '{self.editor.desktop_path}'")
+        else:
+            lines.append("  desktop_path: null  # Auto-detected if not set")
+
+        lines.extend([
+            "",
+            "export:",
+            f"  default_format: {self.export.default_format}",
+            f"  png_scale: {self.export.png_scale}",
+            "",
+            "workspace:",
+            f"  root: {self.workspace.root}",
+        ])
+
+        return "\n".join(lines) + "\n"
 
 
 def find_workspace_root(start_path: Optional[Path] = None) -> Optional[Path]:
@@ -259,7 +302,7 @@ def init_workspace(path: Optional[Path] = None) -> Config:
         config.editor.desktop_path = str(desktop_app)
         config.editor.prefer = "desktop"
 
-    config.save()
+    config.save(with_comments=True)
 
     # Create empty state file
     state_file = config.state_file

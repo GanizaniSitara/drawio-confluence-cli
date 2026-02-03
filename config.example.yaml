@@ -1,0 +1,29 @@
+# Example drawio-cli configuration
+# Copy this to .drawio-cli/config.yaml in your diagrams folder
+# or run 'drawio-cli init' to generate one
+
+confluence:
+  base_url: https://wiki.company.com
+  auth_type: pat  # "pat" or "basic"
+  ssl_verify: true  # Set to false for self-signed certs
+  # Credentials can be set here or via environment variables (env vars take precedence)
+  # pat: your-personal-access-token
+  # username: your-username
+  # password: your-password
+
+editor:
+  prefer: desktop  # "desktop" or "web"
+  # Path to draw.io desktop app - supports Windows, Linux, or WSL paths
+  # Examples:
+  #   Windows:  C:\Program Files\draw.io\draw.io.exe
+  #   Linux:    /usr/bin/drawio
+  #   WSL:      /mnt/c/Program Files/draw.io/draw.io.exe
+  desktop_path: null  # Auto-detected if not set
+
+export:
+  default_format: png  # png, svg, pdf
+  svg_with_html_macro: false
+  png_scale: 2
+
+workspace:
+  root: .
