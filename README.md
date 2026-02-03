@@ -163,6 +163,8 @@ confluence:
 editor:
   prefer: "desktop"  # or "web"
   desktop_path: "/path/to/draw.io"  # auto-detected on init, or set manually
+  # Windows paths must use single quotes: 'C:\Program Files\draw.io\draw.io.exe'
+  # WSL paths work too: /mnt/c/Program Files/draw.io/draw.io.exe
 
 export:
   default_format: "png"
