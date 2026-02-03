@@ -297,13 +297,7 @@ def checkout(
 
 @main.command()
 @click.argument("name")
-@click.option(
-    "--page",
-    "-p",
-    "page_url",
-    default=None,
-    help="Link to a Confluence page",
-)
+@click.argument("page_url", required=False, default=None)
 @click.option(
     "--output",
     "-o",
@@ -324,7 +318,11 @@ def new(
     output: Optional[Path],
     edit: bool,
 ) -> None:
-    """Create a new .drawio diagram."""
+    """Create a new .drawio diagram.
+
+    NAME is the diagram filename (with or without .drawio extension).
+    PAGE_URL is an optional Confluence page URL to link the diagram to.
+    """
     ctx.load()
 
     if output is None:
@@ -337,8 +335,9 @@ def new(
     output_path = output / name
 
     if output_path.exists():
-        console.print(f"[red]Error:[/red] File already exists: {output_path}")
-        sys.exit(1)
+        if not click.confirm(f"File already exists: {output_path}\nOverwrite and update Confluence link?"):
+            console.print("[yellow]Cancelled[/yellow]")
+            sys.exit(0)
 
     # Create empty diagram
     content = create_empty_diagram(Path(name).stem)
@@ -369,11 +368,7 @@ def new(
             if method == "desktop":
                 console.print(f"[green]Opened in desktop app[/green]")
             else:
-                console.print(f"[green]Opened app.diagrams.net[/green]")
-                console.print(f"\nTo edit {output_path.name}:")
-                console.print("  1. Click File → Open from → Device")
-                console.print(f"  2. Navigate to {output_path.resolve()}")
-                console.print("  3. When done, File → Save (Ctrl+S) to update the file")
+                console.print(f"[green]Opened app.diagrams.net[/green] - use File → Open from → Device to load {output_path.name}")
         except EditorError as e:
             console.print(f"[yellow]Could not open editor:[/yellow] {e}")
             console.print(f"\nEdit manually with: drawio-cli edit {name}")
@@ -409,11 +404,7 @@ def edit(ctx: CliContext, diagram: Path, desktop: Optional[bool]) -> None:
         if method == "desktop":
             console.print(f"[green]Opened in desktop app:[/green] {diagram}")
         else:
-            console.print(f"[green]Opened app.diagrams.net[/green]")
-            console.print(f"\nTo edit {diagram.name}:")
-            console.print("  1. Click File → Open from → Device")
-            console.print(f"  2. Navigate to {diagram.resolve()}")
-            console.print("  3. When done, File → Save (Ctrl+S) to update the file")
+            console.print(f"[green]Opened app.diagrams.net[/green] - use File → Open from → Device to load {diagram.name}")
     except EditorError as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)

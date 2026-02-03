@@ -88,17 +88,80 @@ def find_desktop_app() -> Optional[Path]:
 def is_desktop_available(config: Optional[EditorConfig] = None) -> bool:
     """Check if desktop app is available."""
     if config and config.desktop_path:
-        return Path(config.desktop_path).exists()
+        return _path_exists(config.desktop_path)
     return find_desktop_app() is not None
 
 
 def get_desktop_path(config: Optional[EditorConfig] = None) -> Optional[Path]:
     """Get the desktop app path."""
     if config and config.desktop_path:
-        path = Path(config.desktop_path)
-        if path.exists():
-            return path
+        if _path_exists(config.desktop_path):
+            return _resolve_path(config.desktop_path)
     return find_desktop_app()
+
+
+def _windows_to_wsl_path(path_str: str) -> Optional[Path]:
+    """Convert a Windows path to a WSL path."""
+    # Handle C:\... -> /mnt/c/...
+    if len(path_str) >= 3 and path_str[1] == ":" and path_str[2] == "\\":
+        drive = path_str[0].lower()
+        rest = path_str[3:].replace("\\", "/")
+        return Path(f"/mnt/{drive}/{rest}")
+    # Also handle C:/... style
+    if len(path_str) >= 3 and path_str[1] == ":" and path_str[2] == "/":
+        drive = path_str[0].lower()
+        rest = path_str[3:]
+        return Path(f"/mnt/{drive}/{rest}")
+    return None
+
+
+def _wsl_to_windows_path(path: Path) -> str:
+    """Convert a WSL path to a Windows path."""
+    path_str = str(path)
+    # Handle /mnt/c/... -> C:\...
+    if path_str.startswith("/mnt/") and len(path_str) > 6:
+        drive = path_str[5].upper()
+        rest = path_str[6:].replace("/", "\\")
+        return f"{drive}:{rest}"
+    # For other paths, use wslpath if available
+    try:
+        result = subprocess.run(
+            ["wslpath", "-w", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return path_str
+
+
+def _path_exists(path_str: str) -> bool:
+    """Check if a path exists, handling Windows paths in WSL."""
+    path = Path(path_str)
+    if path.exists():
+        return True
+    # In WSL, try converting Windows path
+    if _is_wsl():
+        wsl_path = _windows_to_wsl_path(path_str)
+        if wsl_path and wsl_path.exists():
+            return True
+    return False
+
+
+def _resolve_path(path_str: str) -> Path:
+    """Resolve a path, converting Windows paths in WSL if needed."""
+    path = Path(path_str)
+    if path.exists():
+        return path
+    # In WSL, try converting Windows path
+    if _is_wsl():
+        wsl_path = _windows_to_wsl_path(path_str)
+        if wsl_path and wsl_path.exists():
+            return wsl_path
+    return path
 
 
 def open_in_desktop(file_path: Path, config: Optional[EditorConfig] = None) -> bool:
@@ -120,6 +183,15 @@ def open_in_desktop(file_path: Path, config: Optional[EditorConfig] = None) -> b
             subprocess.Popen([str(app_path), str(file_path)], shell=False)
         elif platform.system() == "Darwin":
             subprocess.Popen(["open", "-a", str(app_path), str(file_path)])
+        elif _is_wsl() and str(app_path).endswith(".exe"):
+            # In WSL with Windows app - convert paths and use cmd.exe
+            win_app_path = _wsl_to_windows_path(app_path)
+            win_file_path = _wsl_to_windows_path(file_path)
+            subprocess.Popen(
+                ["cmd.exe", "/c", "start", "", win_app_path, win_file_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         else:
             subprocess.Popen([str(app_path), str(file_path)])
         return True
@@ -142,7 +214,15 @@ def open_in_web(file_path: Path) -> bool:
     url = "https://app.diagrams.net/"
 
     try:
-        webbrowser.open(url)
+        if _is_wsl():
+            # In WSL, use cmd.exe to open the browser
+            subprocess.Popen(
+                ["cmd.exe", "/c", "start", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            webbrowser.open(url)
         return True
     except Exception as e:
         raise EditorError(f"Failed to open web browser: {e}")
