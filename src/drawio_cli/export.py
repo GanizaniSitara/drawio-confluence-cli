@@ -116,6 +116,10 @@ def export_with_cli(
     if format == "png" and scale != 1:
         cmd.extend(["-s", str(scale)])
 
+    # Embed diagram source in SVG for round-trip editing
+    if format == "svg":
+        cmd.append("--embed-diagram")
+
     # Add page selection
     if page is not None:
         cmd.extend(["-p", str(page)])
@@ -530,4 +534,4 @@ def export_diagram(
 
 def get_supported_formats() -> list[str]:
     """Get list of supported export formats."""
-    return ["png", "svg", "pdf", "jpg", "gif", "webp"]
+    return ["png", "svg", "pdf", "jpg", "gif", "webp", "html"]

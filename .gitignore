@@ -60,3 +60,6 @@ venv.bak/
 
 # drawio-cli workspace
 .drawio-cli/
+
+# Test artifacts
+test-screenshots/

@@ -31,6 +31,7 @@ class DiagramState:
     local_path: str
     confluence_page_id: Optional[str] = None
     confluence_page_url: Optional[str] = None
+    export_format: Optional[str] = None  # svg, html, png, etc.
     last_sync: Optional[str] = None
     last_attachment_version: Optional[int] = None
     last_local_modified: Optional[str] = None
@@ -41,6 +42,7 @@ class DiagramState:
         return {
             "confluence_page_id": self.confluence_page_id,
             "confluence_page_url": self.confluence_page_url,
+            "export_format": self.export_format,
             "last_sync": self.last_sync,
             "last_attachment_version": self.last_attachment_version,
             "last_local_modified": self.last_local_modified,
@@ -57,6 +59,7 @@ class DiagramState:
             local_path=local_path,
             confluence_page_id=data.get("confluence_page_id"),
             confluence_page_url=data.get("confluence_page_url"),
+            export_format=data.get("export_format"),
             last_sync=data.get("last_sync"),
             last_attachment_version=data.get("last_attachment_version"),
             last_local_modified=data.get("last_local_modified"),

@@ -306,6 +306,14 @@ def checkout(
     help="Output directory (defaults to current directory)",
 )
 @click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(get_supported_formats()),
+    default=None,
+    help="Export format for publishing (default: from config)",
+)
+@click.option(
     "--edit/--no-edit",
     default=True,
     help="Open diagram in editor after creation (default: yes)",
@@ -316,6 +324,7 @@ def new(
     name: str,
     page_url: Optional[str],
     output: Optional[Path],
+    fmt: Optional[str],
     edit: bool,
 ) -> None:
     """Create a new .drawio diagram.
@@ -356,10 +365,14 @@ def new(
         except ConfluenceError as e:
             console.print(f"[yellow]Warning:[/yellow] Could not link to page: {e}")
 
-    ctx.state.add_diagram(rel_path, page_id, page_url)
+    diagram_state = ctx.state.add_diagram(rel_path, page_id, page_url)
+    if fmt:
+        diagram_state.export_format = fmt
     ctx.state.save()
 
     console.print(f"[green]✓ Created:[/green] {output_path}")
+    if fmt:
+        console.print(f"  Export format: {fmt}")
 
     # Auto-open in editor if requested
     if edit:
@@ -513,6 +526,14 @@ def export_cmd(
     help="Confluence page URL (overrides stored link)",
 )
 @click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(get_supported_formats()),
+    default=None,
+    help="Export format (overrides stored format)",
+)
+@click.option(
     "--no-content-update",
     is_flag=True,
     help="Only upload attachments, don't update page content",
@@ -527,6 +548,7 @@ def publish(
     ctx: CliContext,
     diagram: Path,
     page_url: Optional[str],
+    fmt: Optional[str],
     no_content_update: bool,
     force_export: bool,
 ) -> None:
@@ -542,6 +564,7 @@ def publish(
             state=ctx.state,
             client=ctx.client,
             page_url=page_url,
+            export_format=fmt,
             update_page_content=not no_content_update,
             force_export=force_export,
         )

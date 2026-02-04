@@ -372,6 +372,7 @@ class ConfluenceClient:
             ".gif": "image/gif",
             ".pdf": "application/pdf",
             ".xml": "application/xml",
+            ".html": "text/html",
         }
         return media_types.get(ext, "application/octet-stream")
 

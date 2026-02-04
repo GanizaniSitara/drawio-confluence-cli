@@ -63,18 +63,33 @@ def generate_diagram_section(
     """Generate complete Confluence storage format section for a diagram.
 
     Includes:
-    - Embedded image (ac:image macro)
+    - Embedded image (ac:image macro) for image formats
+    - Download link for HTML files (ac:image doesn't work for HTML)
     - Download link for .drawio source
     - List of links found in diagram
     """
     sections = []
 
-    # Image macro
-    sections.append(
-        f'<ac:image ac:align="center" ac:layout="center">'
-        f'<ri:attachment ri:filename="{image_filename}" />'
-        f'</ac:image>'
+    # Check if the file is an image format that ac:image supports
+    is_image = image_filename.lower().endswith(
+        (".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".pdf")
     )
+
+    if is_image:
+        # Image macro
+        sections.append(
+            f'<ac:image ac:align="center" ac:layout="center">'
+            f'<ri:attachment ri:filename="{image_filename}" />'
+            f'</ac:image>'
+        )
+    else:
+        # HTML or other non-image format - provide download/open link
+        sections.append(
+            f'<p><strong>Interactive diagram: </strong>'
+            f'<ac:link><ri:attachment ri:filename="{image_filename}" />'
+            f'<ac:plain-text-link-body><![CDATA[Open {image_filename}]]></ac:plain-text-link-body>'
+            f'</ac:link></p>'
+        )
 
     # Source file link
     sections.append(
@@ -99,18 +114,24 @@ def find_diagram_section(body: str, diagram_name: str) -> tuple[int, int]:
     # Look for markers we can use to identify the section
     # Pattern: ac:image with our filename, followed by source link, followed by links
 
-    # Simple approach: find ac:image with our attachment
+    # Simple approach: find ac:image or ac:link with our attachment
     patterns = [
         f'ri:filename="{diagram_name}.png"',
         f'ri:filename="{diagram_name}.svg"',
+        f'ri:filename="{diagram_name}.html"',
+        f'ri:filename="{diagram_name}.jpg"',
+        f'ri:filename="{diagram_name}.pdf"',
     ]
 
     for pattern in patterns:
         match = re.search(re.escape(pattern), body)
         if match:
-            # Found the image - now find the section boundaries
-            # Walk backwards to find ac:image start
+            # Found the image/link - now find the section boundaries
+            # Walk backwards to find ac:image or <p> start (for HTML format)
             start = body.rfind("<ac:image", 0, match.start())
+            if start == -1:
+                # Try to find <p> tag for HTML format sections
+                start = body.rfind("<p>", 0, match.start())
             if start == -1:
                 continue
 
@@ -172,6 +193,7 @@ def publish_diagram(
     client: ConfluenceClient,
     page_id: Optional[str] = None,
     page_url: Optional[str] = None,
+    export_format: Optional[str] = None,
     update_page_content: bool = True,
     force_export: bool = False,
 ) -> PublishResult:
@@ -224,8 +246,11 @@ def publish_diagram(
     diagram_info = parse_drawio_file(diagram_path)
     links = [DiagramLink(label=l.label, url=l.url) for l in diagram_info.links]
 
-    # Export diagram
-    export_format = config.export.default_format
+    # Determine export format: passed format > stored format > config default
+    if export_format is None and diagram_state and diagram_state.export_format:
+        export_format = diagram_state.export_format
+    if export_format is None:
+        export_format = config.export.default_format
     export_result: Optional[ExportResult] = None
     image_attachment: Optional[Attachment] = None
 

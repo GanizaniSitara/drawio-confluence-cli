@@ -205,9 +205,31 @@ def extract_links_from_html(html: str) -> list[tuple[str, str]]:
     return links
 
 
-def create_empty_diagram(name: str = "Untitled Diagram") -> str:
-    """Create an empty .drawio diagram XML."""
-    return f'''<?xml version="1.0" encoding="UTF-8"?>
+def create_empty_diagram(name: str = "Untitled Diagram", with_sample_content: bool = False) -> str:
+    """Create a .drawio diagram XML.
+
+    Args:
+        name: The diagram name
+        with_sample_content: If True, include a sample shape for visibility in exports
+    """
+    if with_sample_content:
+        # Include a sample rectangle with the diagram name for visible exports
+        content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="{_current_timestamp()}" type="device">
+  <diagram id="diagram-1" name="{name}">
+    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="{name}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="200" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>'''
+    else:
+        content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net" modified="{_current_timestamp()}" type="device">
   <diagram id="diagram-1" name="{name}">
     <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
@@ -218,6 +240,7 @@ def create_empty_diagram(name: str = "Untitled Diagram") -> str:
     </mxGraphModel>
   </diagram>
 </mxfile>'''
+    return content
 
 
 def _current_timestamp() -> str:
