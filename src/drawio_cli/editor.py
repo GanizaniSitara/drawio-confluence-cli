@@ -164,8 +164,21 @@ def _resolve_path(path_str: str) -> Path:
     return path
 
 
-def open_in_desktop(file_path: Path, config: Optional[EditorConfig] = None) -> bool:
-    """Open a diagram in the desktop app."""
+def open_in_desktop(
+    file_path: Path,
+    config: Optional[EditorConfig] = None,
+    wait: bool = False,
+) -> bool:
+    """Open a diagram in the desktop app.
+
+    Args:
+        file_path: Path to the .drawio file
+        config: Editor configuration
+        wait: If True, block until the editor closes
+
+    Returns:
+        True if the editor was opened successfully
+    """
     app_path = get_desktop_path(config)
     if app_path is None:
         raise EditorError(
@@ -180,20 +193,38 @@ def open_in_desktop(file_path: Path, config: Optional[EditorConfig] = None) -> b
     try:
         # Launch the app with the file
         if platform.system() == "Windows":
-            subprocess.Popen([str(app_path), str(file_path)], shell=False)
+            if wait:
+                subprocess.run([str(app_path), str(file_path)], check=False)
+            else:
+                subprocess.Popen([str(app_path), str(file_path)], shell=False)
         elif platform.system() == "Darwin":
-            subprocess.Popen(["open", "-a", str(app_path), str(file_path)])
+            if wait:
+                subprocess.run(["open", "-W", "-a", str(app_path), str(file_path)], check=False)
+            else:
+                subprocess.Popen(["open", "-a", str(app_path), str(file_path)])
         elif _is_wsl() and str(app_path).endswith(".exe"):
-            # In WSL with Windows app - convert paths and use cmd.exe
+            # In WSL with Windows app - launch directly (not via cmd.exe start)
+            # so we can wait for it to close
             win_app_path = _wsl_to_windows_path(app_path)
             win_file_path = _wsl_to_windows_path(file_path)
-            subprocess.Popen(
-                ["cmd.exe", "/c", "start", "", win_app_path, win_file_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            if wait:
+                subprocess.run(
+                    [str(app_path), win_file_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            else:
+                subprocess.Popen(
+                    ["cmd.exe", "/c", "start", "", win_app_path, win_file_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
         else:
-            subprocess.Popen([str(app_path), str(file_path)])
+            if wait:
+                subprocess.run([str(app_path), str(file_path)], check=False)
+            else:
+                subprocess.Popen([str(app_path), str(file_path)])
         return True
     except Exception as e:
         raise EditorError(f"Failed to launch desktop app: {e}")
@@ -232,6 +263,7 @@ def open_diagram(
     file_path: Path,
     config: Optional[EditorConfig] = None,
     prefer: Optional[str] = None,
+    wait: bool = False,
 ) -> str:
     """Open a diagram for editing.
 
@@ -239,6 +271,7 @@ def open_diagram(
         file_path: Path to the .drawio file
         config: Editor configuration
         prefer: Override for editor preference ("web" or "desktop")
+        wait: If True, block until the editor closes (desktop only)
 
     Returns:
         String indicating how the file was opened ("desktop" or "web")
@@ -252,7 +285,7 @@ def open_diagram(
     if prefer == "desktop" or (prefer is None and is_desktop_available(config)):
         # Try desktop first
         try:
-            open_in_desktop(file_path, config)
+            open_in_desktop(file_path, config, wait=wait)
             return "desktop"
         except EditorError:
             # Fall back to web
@@ -261,7 +294,12 @@ def open_diagram(
             open_in_web(file_path)
             return "web"
     else:
-        # Use web
+        # Use web (can't wait for web editor)
+        if wait:
+            raise EditorError(
+                "Cannot wait for web editor to close. "
+                "Use desktop app with --wait, or manually run 'drawio-cli publish' after editing."
+            )
         open_in_web(file_path)
         return "web"
 

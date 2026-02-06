@@ -325,9 +325,14 @@ def checkout(
     help="Export format for publishing (default: from config)",
 )
 @click.option(
-    "--edit/--no-edit",
-    default=True,
-    help="Open diagram in editor after creation (default: yes)",
+    "--no-edit",
+    is_flag=True,
+    help="Don't open editor after creation",
+)
+@click.option(
+    "--no-publish",
+    is_flag=True,
+    help="Don't publish after editing (just create and open)",
 )
 @pass_context
 def new(
@@ -336,12 +341,16 @@ def new(
     page_url: Optional[str],
     output: Optional[Path],
     fmt: Optional[str],
-    edit: bool,
+    no_edit: bool,
+    no_publish: bool,
 ) -> None:
     """Create a new .drawio diagram.
 
     NAME is the diagram filename (with or without .drawio extension).
     PAGE_URL is an optional Confluence page URL to link the diagram to.
+
+    When PAGE_URL is provided, the editor will wait for you to save and close,
+    then automatically export and publish to Confluence.
     """
     ctx.load()
 
@@ -368,6 +377,10 @@ def new(
     rel_path = str(output_path.relative_to(ctx.workspace_root))
     page_id = None
 
+    # Publish by default if page_url is provided (unless --no-publish)
+    should_publish = page_url is not None and not no_publish
+    should_edit = not no_edit
+
     if page_url:
         try:
             page = ctx.client.get_page_by_url(page_url)
@@ -375,6 +388,10 @@ def new(
             console.print(f"Linked to page: {page.title}")
         except ConfluenceError as e:
             console.print(f"[yellow]Warning:[/yellow] Could not link to page: {e}")
+            if should_publish:
+                console.print("[red]Error:[/red] Cannot publish without valid page link")
+                sys.exit(1)
+            should_publish = False
 
     diagram_state = ctx.state.add_diagram(rel_path, page_id, page_url)
     if fmt:
@@ -385,14 +402,46 @@ def new(
     if fmt:
         console.print(f"  Export format: {fmt}")
 
-    # Auto-open in editor if requested
-    if edit:
+    # Open in editor
+    if should_edit:
         try:
-            method = open_diagram(output_path, ctx.config.editor)
+            wait_for_close = should_publish  # Wait if we need to publish after
+            if wait_for_close:
+                console.print("[bold]Opening editor - will publish after you save and close...[/bold]")
+            method = open_diagram(output_path, ctx.config.editor, wait=wait_for_close)
             if method == "desktop":
-                console.print(f"[green]Opened in desktop app[/green]")
+                if not wait_for_close:
+                    console.print(f"[green]Opened in desktop app[/green]")
             else:
                 console.print(f"[green]Opened app.diagrams.net[/green] - use File → Open from → Device to load {output_path.name}")
+                if should_publish:
+                    console.print("[yellow]Note:[/yellow] Cannot auto-publish with web editor. Run 'drawio-cli publish' manually after editing.")
+                    should_publish = False
+
+            # Publish after editor closes
+            if should_publish and method == "desktop":
+                console.print("\n[bold]Editor closed. Publishing to Confluence...[/bold]")
+                try:
+                    result = publish_diagram(
+                        diagram_path=output_path,
+                        config=ctx.config,
+                        state=ctx.state,
+                        client=ctx.client,
+                        export_format=fmt,
+                    )
+                    console.print(f"[green]✓ Published successfully[/green]")
+                    console.print(f"  Page: {result.page_url}")
+                    console.print(f"  .drawio attachment: v{result.drawio_attachment.version}")
+                    if result.image_attachment:
+                        console.print(f"  Image attachment: {result.image_attachment.filename}")
+                    else:
+                        console.print("  [yellow]No image attachment (export may have failed)[/yellow]")
+                    if result.page_updated:
+                        console.print("  Page content updated")
+                except (PublishError, ConfluenceError, ExportError) as e:
+                    console.print(f"[red]Publish error:[/red] {e}")
+                    sys.exit(1)
+
         except EditorError as e:
             console.print(f"[yellow]Could not open editor:[/yellow] {e}")
             console.print(f"\nEdit manually with: drawio-cli edit {name}")
@@ -407,9 +456,18 @@ def new(
     default=None,
     help="Force desktop or web editor",
 )
+@click.option(
+    "--no-publish",
+    is_flag=True,
+    help="Don't publish after editing (just open editor)",
+)
 @pass_context
-def edit(ctx: CliContext, diagram: Path, desktop: Optional[bool]) -> None:
-    """Open a diagram for editing."""
+def edit(ctx: CliContext, diagram: Path, desktop: Optional[bool], no_publish: bool) -> None:
+    """Open a diagram for editing.
+
+    If the diagram is linked to a Confluence page, it will automatically
+    publish after you save and close the editor.
+    """
     ctx.load()
 
     # Validate file
@@ -423,12 +481,50 @@ def edit(ctx: CliContext, diagram: Path, desktop: Optional[bool]) -> None:
     elif desktop is False:
         prefer = "web"
 
+    # Check if diagram is linked to Confluence
+    rel_path = str(diagram.resolve().relative_to(ctx.workspace_root))
+    diagram_state = ctx.state.get_diagram(rel_path)
+    is_linked = diagram_state and diagram_state.confluence_page_id
+    should_publish = is_linked and not no_publish
+
     try:
-        method = open_diagram(diagram, ctx.config.editor, prefer)
+        wait_for_close = should_publish
+        if wait_for_close:
+            console.print("[bold]Opening editor - will publish after you save and close...[/bold]")
+
+        method = open_diagram(diagram, ctx.config.editor, prefer, wait=wait_for_close)
         if method == "desktop":
-            console.print(f"[green]Opened in desktop app:[/green] {diagram}")
+            if not wait_for_close:
+                console.print(f"[green]Opened in desktop app:[/green] {diagram}")
         else:
             console.print(f"[green]Opened app.diagrams.net[/green] - use File → Open from → Device to load {diagram.name}")
+            if should_publish:
+                console.print("[yellow]Note:[/yellow] Cannot auto-publish with web editor. Run 'drawio-cli publish' manually after editing.")
+                should_publish = False
+
+        # Publish after editor closes
+        if should_publish and method == "desktop":
+            console.print("\n[bold]Editor closed. Publishing to Confluence...[/bold]")
+            try:
+                result = publish_diagram(
+                    diagram_path=diagram,
+                    config=ctx.config,
+                    state=ctx.state,
+                    client=ctx.client,
+                )
+                console.print(f"[green]✓ Published successfully[/green]")
+                console.print(f"  Page: {result.page_url}")
+                console.print(f"  .drawio attachment: v{result.drawio_attachment.version}")
+                if result.image_attachment:
+                    console.print(f"  Image attachment: {result.image_attachment.filename}")
+                else:
+                    console.print("  [yellow]No image attachment (export may have failed)[/yellow]")
+                if result.page_updated:
+                    console.print("  Page content updated")
+            except (PublishError, ConfluenceError, ExportError) as e:
+                console.print(f"[red]Publish error:[/red] {e}")
+                sys.exit(1)
+
     except EditorError as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)

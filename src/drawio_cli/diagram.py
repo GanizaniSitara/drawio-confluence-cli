@@ -211,13 +211,17 @@ def create_empty_diagram(name: str = "Untitled Diagram", with_sample_content: bo
     Args:
         name: The diagram name
         with_sample_content: If True, include a sample shape for visibility in exports
+
+    Creates a landscape A4 diagram with page view disabled for a cleaner editing experience.
     """
+    # Landscape A4: 1169x827 (swapped from portrait 827x1169)
+    # page="0" disables page view for cleaner infinite canvas
     if with_sample_content:
         # Include a sample rectangle with the diagram name for visible exports
         content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net" modified="{_current_timestamp()}" type="device">
   <diagram id="diagram-1" name="{name}">
-    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -232,7 +236,7 @@ def create_empty_diagram(name: str = "Untitled Diagram", with_sample_content: bo
         content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net" modified="{_current_timestamp()}" type="device">
   <diagram id="diagram-1" name="{name}">
-    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
