@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .config import Config
 from .confluence import ConfluenceClient, Page, Attachment, ConflictError
@@ -186,6 +186,9 @@ def update_page_body(
             return new_section
 
 
+LogFunc = Callable[[str], None]
+
+
 def publish_diagram(
     diagram_path: Path,
     config: Config,
@@ -196,6 +199,7 @@ def publish_diagram(
     export_format: Optional[str] = None,
     update_page_content: bool = True,
     force_export: bool = False,
+    log: Optional[LogFunc] = None,
 ) -> PublishResult:
     """Publish a diagram to Confluence.
 
@@ -219,6 +223,10 @@ def publish_diagram(
     Returns:
         PublishResult with publish details
     """
+    def _log(msg: str) -> None:
+        if log:
+            log(msg)
+
     diagram_path = diagram_path.resolve()
     if not diagram_path.exists():
         raise PublishError(f"Diagram file not found: {diagram_path}")
@@ -228,6 +236,7 @@ def publish_diagram(
     diagram_state = state.get_diagram(rel_path)
 
     # Determine target page
+    _log("Resolving target page...")
     if page_id is None and page_url:
         page = client.get_page_by_url(page_url)
         page_id = page.id
@@ -241,10 +250,13 @@ def publish_diagram(
 
     # Get page info
     page = client.get_page_by_id(page_id, expand=["version", "space", "body.storage"])
+    _log(f"Target page: {page.title} (id={page_id})")
 
     # Parse diagram
+    _log("Parsing diagram...")
     diagram_info = parse_drawio_file(diagram_path)
     links = [DiagramLink(label=l.label, url=l.url) for l in diagram_info.links]
+    _log(f"Found {len(diagram_info.pages)} page(s), {len(links)} link(s)")
 
     # Determine export format: passed format > stored format > config default
     if export_format is None and diagram_state and diagram_state.export_format:
@@ -254,6 +266,7 @@ def publish_diagram(
     export_result: Optional[ExportResult] = None
     image_attachment: Optional[Attachment] = None
 
+    _log(f"Exporting to {export_format}...")
     try:
         export_result = export_diagram(
             source=diagram_path,
@@ -262,10 +275,13 @@ def publish_diagram(
             editor_config=config.editor,
             force=force_export,
         )
+        _log(f"Export successful: {export_result.output_file}")
     except Exception as e:
+        _log(f"Export failed: {e}")
         # Export failed - check if we have a cached export
         existing = check_export_available(diagram_path, export_format)
         if existing:
+            _log(f"Using cached export: {existing}")
             from dataclasses import dataclass as dc
 
             @dc
@@ -275,23 +291,26 @@ def publish_diagram(
 
             export_result = CachedResult(output_file=existing, format=export_format)  # type: ignore
         else:
-            # No export available - continue without image
-            pass
+            _log("No cached export available, continuing without image")
 
     # Upload .drawio source
+    _log("Uploading .drawio source...")
     drawio_attachment = client.upload_attachment_from_file(
         page_id=page_id,
         file_path=diagram_path,
         comment="Updated diagram source",
     )
+    _log(f"Uploaded {drawio_attachment.filename} (v{drawio_attachment.version})")
 
     # Upload image if available
     if export_result and hasattr(export_result, 'output_file'):
+        _log(f"Uploading image {export_result.output_file.name}...")
         image_attachment = client.upload_attachment_from_file(
             page_id=page_id,
             file_path=export_result.output_file,
             comment="Updated diagram image",
         )
+        _log(f"Uploaded {image_attachment.filename} (v{image_attachment.version})")
 
     # Update page content
     page_updated = False

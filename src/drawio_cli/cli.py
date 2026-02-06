@@ -63,11 +63,22 @@ class CliContext:
             if self.config is None:
                 raise RuntimeError("Config not loaded")
             if not self.config.confluence.is_configured():
-                console.print(
-                    "[red]Error:[/red] Confluence not configured. "
-                    "Set CONFLUENCE_PAT or CONFLUENCE_USER/CONFLUENCE_PASS "
-                    "environment variables."
-                )
+                auth_type = self.config.confluence.auth_type
+                if auth_type == "pat":
+                    console.print(
+                        "[red]Error:[/red] Confluence not configured. "
+                        "auth_type is 'pat' - set CONFLUENCE_PAT environment variable."
+                    )
+                elif auth_type == "basic":
+                    console.print(
+                        "[red]Error:[/red] Confluence not configured. "
+                        "auth_type is 'basic' - set CONFLUENCE_USER and CONFLUENCE_PASS environment variables."
+                    )
+                else:
+                    console.print(
+                        f"[red]Error:[/red] Invalid auth_type '{auth_type}' in config. "
+                        "Must be 'pat' or 'basic'."
+                    )
                 sys.exit(1)
             self._client = ConfluenceClient(self.config.confluence)
         return self._client
@@ -543,6 +554,11 @@ def export_cmd(
     is_flag=True,
     help="Force re-export even if cached export exists",
 )
+@click.option(
+    "--verbose", "-v",
+    is_flag=True,
+    help="Show detailed progress",
+)
 @pass_context
 def publish(
     ctx: CliContext,
@@ -551,11 +567,16 @@ def publish(
     fmt: Optional[str],
     no_content_update: bool,
     force_export: bool,
+    verbose: bool,
 ) -> None:
     """Publish a diagram to Confluence."""
     ctx.load()
 
     console.print(f"[bold]Publishing {diagram.name}...[/bold]")
+
+    def log(msg: str) -> None:
+        if verbose:
+            console.print(f"  [dim]{msg}[/dim]")
 
     try:
         result = publish_diagram(
@@ -567,6 +588,7 @@ def publish(
             export_format=fmt,
             update_page_content=not no_content_update,
             force_export=force_export,
+            log=log,
         )
 
         console.print(f"\n[green]✓ Published successfully[/green]")
@@ -574,6 +596,8 @@ def publish(
         console.print(f"  .drawio attachment: v{result.drawio_attachment.version}")
         if result.image_attachment:
             console.print(f"  Image attachment: {result.image_attachment.filename}")
+        else:
+            console.print("  [yellow]No image attachment (export may have failed)[/yellow]")
         if result.links_added > 0:
             console.print(f"  Links in diagram: {result.links_added}")
         if result.page_updated:

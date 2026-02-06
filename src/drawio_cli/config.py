@@ -203,14 +203,29 @@ class Config:
             "",
             "confluence:",
             f"  base_url: {self.confluence.base_url or ''}",
-            f"  auth_type: {self.confluence.auth_type}  # 'pat' or 'basic'",
-            f"  ssl_verify: {str(self.confluence.ssl_verify).lower()}",
-            "  # Credentials: set here or via CONFLUENCE_PAT / CONFLUENCE_USER+CONFLUENCE_PASS env vars",
+            "",
+            "  # Authentication type: 'pat' or 'basic'",
+            "  #   pat   - Personal Access Token (recommended for Confluence Server/Data Center)",
+            "  #           Set token via CONFLUENCE_PAT env var or 'pat:' below",
+            "  #   basic - Username and password",
+            "  #           Set via CONFLUENCE_USER + CONFLUENCE_PASS env vars",
+            "  #           or 'username:' + 'password:' below",
+            f"  auth_type: {self.confluence.auth_type}",
+            "",
+            f"  ssl_verify: {str(self.confluence.ssl_verify).lower()}  # Set to false for self-signed certs",
+            "",
+            "  # Credentials (env vars take precedence over values here):",
             "  # pat: your-token-here",
+            "  # username: your-username",
+            "  # password: your-password",
             "",
             "editor:",
-            f"  prefer: {self.editor.prefer}  # 'desktop' or 'web'",
-            "  # Path to draw.io desktop app. Examples:",
+            "  # Editor preference: 'desktop' or 'web'",
+            "  #   desktop - Use local draw.io desktop app (faster, works offline)",
+            "  #   web     - Open app.diagrams.net in browser",
+            f"  prefer: {self.editor.prefer}",
+            "",
+            "  # Path to draw.io desktop app (auto-detected if not set). Examples:",
             "  #   Windows: C:\\Program Files\\draw.io\\draw.io.exe",
             "  #   Linux:   /usr/bin/drawio",
             "  #   WSL:     /mnt/c/Program Files/draw.io/draw.io.exe",
@@ -218,7 +233,7 @@ class Config:
         if self.editor.desktop_path:
             lines.append(f"  desktop_path: '{self.editor.desktop_path}'")
         else:
-            lines.append("  desktop_path: null  # Auto-detected if not set")
+            lines.append("  desktop_path: null")
 
         lines.extend([
             "",
