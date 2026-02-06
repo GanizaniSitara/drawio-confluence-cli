@@ -63,3 +63,9 @@ venv.bak/
 
 # Test artifacts
 test-screenshots/
+
+# Test config with credentials
+tests/test_config.py
+
+# Test output files
+tests/output/

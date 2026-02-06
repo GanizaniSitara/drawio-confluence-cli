@@ -59,36 +59,93 @@ def generate_diagram_section(
     image_filename: str,
     drawio_filename: str,
     links: list[DiagramLink],
+    image_content: Optional[bytes] = None,
 ) -> str:
     """Generate complete Confluence storage format section for a diagram.
 
     Includes:
-    - Embedded image (ac:image macro) for image formats
-    - Download link for HTML files (ac:image doesn't work for HTML)
+    - Image attachment reference (ac:image macro)
+    - Download link for HTML files
     - Download link for .drawio source
     - List of links found in diagram
     """
     sections = []
 
-    # Check if the file is an image format that ac:image supports
-    is_image = image_filename.lower().endswith(
-        (".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".pdf")
-    )
+    ext = image_filename.lower().rsplit(".", 1)[-1] if "." in image_filename else ""
 
-    if is_image:
-        # Image macro
+    # Check if the file is an image format that ac:image supports
+    is_image = ext in ("png", "jpg", "jpeg", "gif", "webp", "pdf")
+
+    if ext == "svg" and image_content:
+        # Embed SVG inline using HTML macro to preserve clickable links
+        try:
+            svg_content = image_content.decode("utf-8")
+            # Strip XML declaration and DOCTYPE - Confluence doesn't like them
+            svg_content = re.sub(r'<\?xml[^?]*\?>\s*', '', svg_content)
+            svg_content = re.sub(r'<!DOCTYPE[^>]*>\s*', '', svg_content)
+            # Strip comments
+            svg_content = re.sub(r'<!--.*?-->\s*', '', svg_content, flags=re.DOTALL)
+            sections.append(
+                f'<ac:structured-macro ac:name="html">'
+                f'<ac:plain-text-body><![CDATA[<div style="text-align:center">{svg_content}</div>]]></ac:plain-text-body>'
+                f'</ac:structured-macro>'
+            )
+        except UnicodeDecodeError:
+            # Fallback to ac:image if decode fails
+            sections.append(
+                f'<ac:image ac:align="center" ac:layout="center" ac:alt="{diagram_name}">'
+                f'<ri:attachment ri:filename="{image_filename}" />'
+                f'</ac:image>'
+            )
+    elif is_image or ext == "svg":
+        # Use ac:image macro to reference the attachment
+        # Note: Confluence doesn't support base64/inline images, must use attachments
         sections.append(
-            f'<ac:image ac:align="center" ac:layout="center">'
+            f'<ac:image ac:align="center" ac:layout="center" ac:alt="{diagram_name}">'
             f'<ri:attachment ri:filename="{image_filename}" />'
             f'</ac:image>'
         )
-    else:
-        # HTML or other non-image format - provide download/open link
+    elif ext == "html" and image_content:
+        # Try to embed HTML content using Confluence HTML macro
+        try:
+            html_content = image_content.decode("utf-8")
+            # Only embed if it looks like actual HTML (not PDF or other binary)
+            if html_content.strip().startswith(("<!DOCTYPE", "<html", "<HTML")):
+                sections.append(
+                    f'<ac:structured-macro ac:name="html">'
+                    f'<ac:plain-text-body><![CDATA[{html_content}]]></ac:plain-text-body>'
+                    f'</ac:structured-macro>'
+                )
+            else:
+                # Not valid HTML, fall back to link
+                sections.append(
+                    f'<p><strong>Interactive diagram: </strong>'
+                    f'<ac:link><ri:attachment ri:filename="{image_filename}" />'
+                    f'<ac:plain-text-link-body><![CDATA[Open {image_filename}]]></ac:plain-text-link-body>'
+                    f'</ac:link></p>'
+                )
+        except UnicodeDecodeError:
+            # Binary content, fall back to link
+            sections.append(
+                f'<p><strong>Interactive diagram: </strong>'
+                f'<ac:link><ri:attachment ri:filename="{image_filename}" />'
+                f'<ac:plain-text-link-body><![CDATA[Open {image_filename}]]></ac:plain-text-link-body>'
+                f'</ac:link></p>'
+            )
+    elif ext == "html":
+        # Fallback: provide download/open link if no content
         sections.append(
             f'<p><strong>Interactive diagram: </strong>'
             f'<ac:link><ri:attachment ri:filename="{image_filename}" />'
             f'<ac:plain-text-link-body><![CDATA[Open {image_filename}]]></ac:plain-text-link-body>'
             f'</ac:link></p>'
+        )
+    else:
+        # Unknown format - fallback to attachment link
+        sections.append(
+            f'<ac:image ac:align="center" ac:layout="center">'
+            f'<ri:attachment ri:filename="{image_filename}" />'
+            f'</ac:image>'
         )
 
     # Source file link
@@ -112,26 +169,33 @@ def find_diagram_section(body: str, diagram_name: str) -> tuple[int, int]:
     Returns (start, end) positions, or (-1, -1) if not found.
     """
     # Look for markers we can use to identify the section
-    # Pattern: ac:image with our filename, followed by source link, followed by links
+    # The source link attachment is always present and contains the diagram name
 
-    # Simple approach: find ac:image or ac:link with our attachment
+    # Patterns to find - prioritize the source file link which is always present
     patterns = [
+        # Source file link (most reliable - always present)
+        f'ri:filename="{diagram_name}.drawio"',
+        # Legacy ac:image references
         f'ri:filename="{diagram_name}.png"',
         f'ri:filename="{diagram_name}.svg"',
         f'ri:filename="{diagram_name}.html"',
         f'ri:filename="{diagram_name}.jpg"',
         f'ri:filename="{diagram_name}.pdf"',
+        # Embedded image alt text
+        f'alt="{diagram_name}"',
     ]
 
     for pattern in patterns:
         match = re.search(re.escape(pattern), body)
         if match:
-            # Found the image/link - now find the section boundaries
-            # Walk backwards to find ac:image or <p> start (for HTML format)
+            # Found a marker - now find the section boundaries
+            # Walk backwards to find the section start
+            # Could be: <ac:image, <p, <div (for centered content)
             start = body.rfind("<ac:image", 0, match.start())
             if start == -1:
-                # Try to find <p> tag for HTML format sections
-                start = body.rfind("<p>", 0, match.start())
+                start = body.rfind("<div", 0, match.start())
+            if start == -1:
+                start = body.rfind("<p", 0, match.start())
             if start == -1:
                 continue
 
@@ -162,6 +226,7 @@ def update_page_body(
     image_filename: str,
     drawio_filename: str,
     links: list[DiagramLink],
+    image_content: Optional[bytes] = None,
 ) -> str:
     """Update page body with diagram section.
 
@@ -169,7 +234,7 @@ def update_page_body(
     Otherwise, append to the end of the body.
     """
     new_section = generate_diagram_section(
-        diagram_name, image_filename, drawio_filename, links
+        diagram_name, image_filename, drawio_filename, links, image_content
     )
 
     # Check if section exists
@@ -321,6 +386,12 @@ def publish_diagram(
         image_filename = image_attachment.filename
         drawio_filename = drawio_attachment.filename
 
+        # Read image content for embedding
+        image_content: Optional[bytes] = None
+        if export_result and hasattr(export_result, 'output_file') and export_result.output_file.exists():
+            image_content = export_result.output_file.read_bytes()
+            _log(f"Read {len(image_content)} bytes of image content for embedding")
+
         # Convert links to the format expected by update_page_body
         link_objs = [
             DiagramLink(label=l.label, url=l.url) for l in diagram_info.links
@@ -332,6 +403,7 @@ def publish_diagram(
             image_filename=image_filename,
             drawio_filename=drawio_filename,
             links=link_objs,
+            image_content=image_content,
         )
 
         if new_body != page.body_storage:

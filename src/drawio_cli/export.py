@@ -97,16 +97,19 @@ def export_with_cli(
 
     # Convert paths for WSL if using Windows executable
     is_wsl = _is_wsl()
-    if is_wsl and str(app_path).endswith(".exe"):
+    use_wsl_interop = is_wsl and str(app_path).endswith(".exe")
+
+    if use_wsl_interop:
         source_arg = _wsl_to_windows_path(source)
         output_arg = _wsl_to_windows_path(output)
+        app_arg = _wsl_to_windows_path(app_path)
     else:
         source_arg = str(source)
         output_arg = str(output)
+        app_arg = str(app_path)
 
-    # Build command
-    cmd = [
-        str(app_path),
+    # Build command arguments (without the app path for now)
+    args = [
         "-x",  # Export mode
         "-f", format,
         "-o", output_arg,
@@ -114,20 +117,27 @@ def export_with_cli(
 
     # Add scale for PNG
     if format == "png" and scale != 1:
-        cmd.extend(["-s", str(scale)])
+        args.extend(["-s", str(scale)])
 
     # Embed diagram source in SVG for round-trip editing
     if format == "svg":
-        cmd.append("--embed-diagram")
+        args.append("--embed-diagram")
 
     # Add page selection
     if page is not None:
-        cmd.extend(["-p", str(page)])
+        args.extend(["-p", str(page)])
     elif all_pages:
-        cmd.append("-a")
+        args.append("-a")
 
     # Add source file
-    cmd.append(source_arg)
+    args.append(source_arg)
+
+    # Build full command - use cmd.exe for WSL interop
+    if use_wsl_interop:
+        # Run Windows executable via cmd.exe from WSL
+        cmd = ["cmd.exe", "/c", app_arg] + args
+    else:
+        cmd = [app_arg] + args
 
     try:
         result = subprocess.run(
@@ -533,5 +543,9 @@ def export_diagram(
 
 
 def get_supported_formats() -> list[str]:
-    """Get list of supported export formats."""
-    return ["png", "svg", "pdf", "jpg", "gif", "webp", "html"]
+    """Get list of supported export formats.
+
+    Note: HTML is not supported by draw.io CLI export.
+    Use png or svg for best Confluence compatibility.
+    """
+    return ["png", "svg", "pdf", "jpg", "gif", "webp"]
