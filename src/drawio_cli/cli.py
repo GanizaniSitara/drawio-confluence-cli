@@ -421,6 +421,10 @@ def new(
             # Publish after editor closes
             if should_publish and method == "desktop":
                 console.print("\n[bold]Editor closed. Publishing to Confluence...[/bold]")
+
+                def log(msg: str) -> None:
+                    console.print(f"  [dim]{msg}[/dim]")
+
                 try:
                     result = publish_diagram(
                         diagram_path=output_path,
@@ -428,6 +432,7 @@ def new(
                         state=ctx.state,
                         client=ctx.client,
                         export_format=fmt,
+                        log=log,
                     )
                     console.print(f"[green]✓ Published successfully[/green]")
                     console.print(f"  Page: {result.page_url}")
@@ -505,12 +510,17 @@ def edit(ctx: CliContext, diagram: Path, desktop: Optional[bool], no_publish: bo
         # Publish after editor closes
         if should_publish and method == "desktop":
             console.print("\n[bold]Editor closed. Publishing to Confluence...[/bold]")
+
+            def log(msg: str) -> None:
+                console.print(f"  [dim]{msg}[/dim]")
+
             try:
                 result = publish_diagram(
                     diagram_path=diagram,
                     config=ctx.config,
                     state=ctx.state,
                     client=ctx.client,
+                    log=log,
                 )
                 console.print(f"[green]✓ Published successfully[/green]")
                 console.print(f"  Page: {result.page_url}")

@@ -314,7 +314,9 @@ def publish_diagram(
 
     # Update page content
     page_updated = False
+    _log(f"update_page_content={update_page_content}, image_attachment={image_attachment is not None}")
     if update_page_content and image_attachment:
+        _log("Updating page content...")
         diagram_name = diagram_path.stem
         image_filename = image_attachment.filename
         drawio_filename = drawio_attachment.filename
@@ -333,6 +335,7 @@ def publish_diagram(
         )
 
         if new_body != page.body_storage:
+            _log("Page body changed, saving...")
             try:
                 client.update_page_content(
                     page_id=page_id,
@@ -341,10 +344,13 @@ def publish_diagram(
                     version=page.version,
                 )
                 page_updated = True
+                _log("Page updated successfully")
             except ConflictError:
                 raise PublishError(
                     "Page was modified since reading. Please try again."
                 )
+        else:
+            _log("Page body unchanged, skipping update")
 
     # Update state
     if diagram_state is None:
