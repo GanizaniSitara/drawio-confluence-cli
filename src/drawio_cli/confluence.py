@@ -376,6 +376,42 @@ class ConfluenceClient:
         }
         return media_types.get(ext, "application/octet-stream")
 
+    def get_spaces(self, limit: int = 25) -> list[dict]:
+        """Get list of available spaces."""
+        response = self._request("GET", "space", params={"limit": limit})
+        return response.json().get("results", [])
+
+    def create_page(
+        self,
+        space_key: str,
+        title: str,
+        body: str = "",
+    ) -> Page:
+        """Create a new page in a space.
+
+        Args:
+            space_key: The space key to create the page in
+            title: Page title
+            body: Page body in storage format (optional)
+
+        Returns:
+            The created Page object
+        """
+        data = {
+            "type": "page",
+            "title": title,
+            "space": {"key": space_key},
+            "body": {
+                "storage": {
+                    "value": body,
+                    "representation": "storage",
+                }
+            },
+        }
+
+        response = self._request("POST", "content", json=data)
+        return self._parse_page(response.json())
+
     def test_connection(self) -> bool:
         """Test if the connection to Confluence works."""
         try:

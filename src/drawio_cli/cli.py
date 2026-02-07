@@ -1,8 +1,10 @@
 """Command-line interface for drawio-cli."""
 
+import re
 import sys
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import click
 from rich.console import Console
@@ -16,7 +18,7 @@ from .config import (
     init_workspace,
     load_config,
 )
-from .confluence import ConfluenceClient, ConfluenceError, AuthenticationError
+from .confluence import ConfluenceClient, ConfluenceError, AuthenticationError, NotFoundError
 from .diagram import (
     parse_drawio_file,
     create_empty_diagram,
@@ -29,6 +31,48 @@ from .publisher import publish_diagram, checkout_diagram, PublishError
 from .state import load_state, State
 
 console = Console()
+
+
+def _extract_space_key_from_url(page_url: str) -> Optional[str]:
+    """Extract space key from a Confluence page URL.
+
+    Supports:
+    - /display/SPACE/Title
+    - /spaces/SPACE/pages/...
+    """
+    parsed = urlparse(page_url)
+    path = parsed.path
+
+    # Format: /display/SPACE/Title
+    match = re.match(r".*/display/([^/]+)/", path)
+    if match:
+        return match.group(1)
+
+    # Format: /spaces/SPACE/pages/...
+    match = re.match(r".*/spaces/([^/]+)/", path)
+    if match:
+        return match.group(1)
+
+    return None
+
+
+def _extract_title_from_url(page_url: str) -> Optional[str]:
+    """Extract page title from a Confluence page URL.
+
+    Supports:
+    - /display/SPACE/Title
+    """
+    parsed = urlparse(page_url)
+    path = parsed.path
+
+    # Format: /display/SPACE/Title
+    match = re.match(r".*/display/[^/]+/(.+)$", path)
+    if match:
+        title = match.group(1)
+        # URL decode: replace + and %20 with spaces
+        return title.replace("+", " ").replace("%20", " ")
+
+    return None
 
 
 class CliContext:
@@ -348,6 +392,7 @@ def new(
 
     NAME is the diagram filename (with or without .drawio extension).
     PAGE_URL is an optional Confluence page URL to link the diagram to.
+    If the page doesn't exist, it will be created automatically.
 
     When PAGE_URL is provided, the editor will wait for you to save and close,
     then automatically export and publish to Confluence.
@@ -368,32 +413,59 @@ def new(
             console.print("[yellow]Cancelled[/yellow]")
             sys.exit(0)
 
-    # Create empty diagram
+    # Publish by default if page_url is provided (unless --no-publish)
+    should_publish = page_url is not None and not no_publish
+    should_edit = not no_edit
+    page_id = None
+    page = None
+
+    # Validate/create Confluence page BEFORE creating local file
+    if page_url:
+        try:
+            page = ctx.client.get_page_by_url(page_url)
+            page_id = page.id
+            console.print(f"Linked to existing page: {page.title}")
+        except NotFoundError:
+            # Page doesn't exist - try to create it
+            space_key = _extract_space_key_from_url(page_url)
+            title = _extract_title_from_url(page_url)
+
+            if not space_key:
+                console.print(f"[red]Error:[/red] Could not extract space key from URL: {page_url}")
+                console.print("URL format should be: /display/SPACEKEY/Page+Title")
+                sys.exit(1)
+
+            if not title:
+                # Use diagram name as title if not in URL
+                title = Path(name).stem.replace("-", " ").replace("_", " ").title()
+
+            console.print(f"Page not found. Creating: {title} in space {space_key}...")
+            try:
+                page = ctx.client.create_page(space_key, title)
+                page_id = page.id
+                console.print(f"[green]✓ Created Confluence page:[/green] {page.title}")
+            except ConfluenceError as e:
+                console.print(f"[red]Error:[/red] Failed to create page: {e}")
+                console.print("Check your permissions for this space.")
+                sys.exit(1)
+        except AuthenticationError as e:
+            console.print(f"[red]Authentication error:[/red] {e}")
+            sys.exit(1)
+        except ConfluenceError as e:
+            console.print(f"[red]Confluence error:[/red] {e}")
+            if should_publish:
+                console.print("Cannot proceed without valid page link.")
+                sys.exit(1)
+            should_publish = False
+
+    # Now create the local diagram file
     content = create_empty_diagram(Path(name).stem)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content)
 
     # Add to state
     rel_path = str(output_path.relative_to(ctx.workspace_root))
-    page_id = None
-
-    # Publish by default if page_url is provided (unless --no-publish)
-    should_publish = page_url is not None and not no_publish
-    should_edit = not no_edit
-
-    if page_url:
-        try:
-            page = ctx.client.get_page_by_url(page_url)
-            page_id = page.id
-            console.print(f"Linked to page: {page.title}")
-        except ConfluenceError as e:
-            console.print(f"[yellow]Warning:[/yellow] Could not link to page: {e}")
-            if should_publish:
-                console.print("[red]Error:[/red] Cannot publish without valid page link")
-                sys.exit(1)
-            should_publish = False
-
-    diagram_state = ctx.state.add_diagram(rel_path, page_id, page_url)
+    diagram_state = ctx.state.add_diagram(rel_path, page_id, page.url if page else page_url)
     if fmt:
         diagram_state.export_format = fmt
     ctx.state.save()
