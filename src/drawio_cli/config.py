@@ -72,7 +72,7 @@ class EditorConfig:
 class ExportConfig:
     """Export configuration."""
 
-    default_format: str = "svg"
+    default_format: str = "png"
     svg_with_html_macro: bool = False
     png_scale: int = 2
 
