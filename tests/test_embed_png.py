@@ -15,7 +15,8 @@ from conftest_e2e import (
     get_test_config,
     get_fixtures_dir,
     get_test_output_dir,
-    get_first_space_key,
+    get_test_space_key,
+    get_test_page_title,
     create_test_page,
     delete_test_page,
     get_page_url,
@@ -44,7 +45,7 @@ def main():
     print(f"Connected to {config.confluence.base_url}")
 
     # Get space
-    space_key = get_first_space_key(client)
+    space_key = get_test_space_key(client)
     print(f"Using space: {space_key}")
 
     # Copy fixture to output dir for testing
@@ -54,7 +55,7 @@ def main():
     print(f"Using diagram: {diagram_path}")
 
     # Create test page
-    page_title = "Embed Test - PNG"
+    page_title = get_test_page_title("PNG")
     page_id = create_test_page(client, page_title, space_key)
     print(f"Using page: {page_id}")
 

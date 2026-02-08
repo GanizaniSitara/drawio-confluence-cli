@@ -8,7 +8,13 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from test_config import CONFLUENCE_BASE_URL, CONFLUENCE_USERNAME, CONFLUENCE_PASSWORD
+from test_config import (
+    CONFLUENCE_BASE_URL,
+    CONFLUENCE_USERNAME,
+    CONFLUENCE_PASSWORD,
+    TEST_SPACE_KEY,
+    TEST_PAGE_PREFIX,
+)
 
 from drawio_cli.config import ConfluenceConfig, ExportConfig, EditorConfig, Config
 from drawio_cli.confluence import ConfluenceClient
@@ -53,13 +59,23 @@ def get_confluence_client() -> ConfluenceClient:
     return ConfluenceClient(get_confluence_config())
 
 
-def get_first_space_key(client: ConfluenceClient) -> str:
-    """Get the first available space key."""
+def get_test_space_key(client: ConfluenceClient) -> str:
+    """Get the space key for tests.
+
+    Uses TEST_SPACE_KEY from config if set, otherwise first available space.
+    """
+    if TEST_SPACE_KEY:
+        return TEST_SPACE_KEY
     response = client._request('GET', 'space', params={'limit': 1})
     spaces = response.json().get('results', [])
     if not spaces:
         raise RuntimeError("No spaces available in Confluence")
     return spaces[0]['key']
+
+
+def get_test_page_title(suffix: str) -> str:
+    """Get a test page title with the configured prefix."""
+    return f"{TEST_PAGE_PREFIX} - {suffix}"
 
 
 def create_test_page(client: ConfluenceClient, title: str, space_key: Optional[str] = None) -> str:
@@ -68,13 +84,13 @@ def create_test_page(client: ConfluenceClient, title: str, space_key: Optional[s
     Args:
         client: The Confluence client
         title: Page title
-        space_key: Optional space key (uses first available space if not provided)
+        space_key: Optional space key (uses TEST_SPACE_KEY or first available)
 
     Returns:
         The page ID
     """
     if space_key is None:
-        space_key = get_first_space_key(client)
+        space_key = get_test_space_key(client)
 
     data = {
         'type': 'page',

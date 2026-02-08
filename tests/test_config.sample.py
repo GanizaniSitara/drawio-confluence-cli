@@ -5,3 +5,9 @@
 CONFLUENCE_BASE_URL = "http://localhost:8090"
 CONFLUENCE_USERNAME = "admin"
 CONFLUENCE_PASSWORD = "admin"
+
+# Space key to use for tests (None = use first available space)
+TEST_SPACE_KEY = None
+
+# Page title prefix for test pages
+TEST_PAGE_PREFIX = "DrawIO CLI Test"
