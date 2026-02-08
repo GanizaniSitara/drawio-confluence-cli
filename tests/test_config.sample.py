@@ -7,6 +7,7 @@ CONFLUENCE_USERNAME = "admin"
 CONFLUENCE_PASSWORD = "admin"
 
 # Space key to use for tests (None = use first available space)
+# Example: TEST_SPACE_KEY = "MYSPACE" or "~username"
 TEST_SPACE_KEY = None
 
 # Page title prefix for test pages

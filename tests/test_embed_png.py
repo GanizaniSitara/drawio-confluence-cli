@@ -28,7 +28,7 @@ from drawio_cli.state import State
 
 def main():
     parser = argparse.ArgumentParser(description="Test PNG embedding in Confluence")
-    parser.add_argument("--keep", action="store_true", help="Keep test page for inspection")
+    parser.add_argument("--delete", action="store_true", help="Delete test page after (default: keep for inspection)")
     args = parser.parse_args()
 
     print("Testing PNG embedding in Confluence...")
@@ -115,20 +115,20 @@ def main():
 
         print(f"\nPage URL: {get_page_url(page_id)}")
 
-        if args.keep:
-            print("\nPage preserved for inspection (--keep flag set)")
-        else:
+        if args.delete:
             print("\nCleaning up test page...")
             if delete_test_page(client, page_id):
                 print("Page deleted.")
             else:
                 print("Could not delete page - delete manually if needed.")
+        else:
+            print("\nPage preserved for inspection (use --delete to remove)")
 
         return 0 if success else 1
 
     except Exception as e:
         print(f"ERROR: {e}")
-        if not args.keep:
+        if args.delete:
             print("Cleaning up test page...")
             delete_test_page(client, page_id)
         raise
