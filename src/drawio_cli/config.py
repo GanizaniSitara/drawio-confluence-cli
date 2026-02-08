@@ -73,7 +73,7 @@ class ExportConfig:
     """Export configuration."""
 
     default_format: str = "svg"
-    svg_with_html_macro: bool = True
+    svg_with_html_macro: bool = False
     png_scale: int = 2
 
 

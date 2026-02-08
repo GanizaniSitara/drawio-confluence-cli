@@ -77,26 +77,13 @@ def generate_diagram_section(
     is_image = ext in ("png", "jpg", "jpeg", "gif", "webp", "pdf")
 
     if ext == "svg" and image_content:
-        # Embed SVG inline using HTML macro to preserve clickable links
-        try:
-            svg_content = image_content.decode("utf-8")
-            # Strip XML declaration and DOCTYPE - Confluence doesn't like them
-            svg_content = re.sub(r'<\?xml[^?]*\?>\s*', '', svg_content)
-            svg_content = re.sub(r'<!DOCTYPE[^>]*>\s*', '', svg_content)
-            # Strip comments
-            svg_content = re.sub(r'<!--.*?-->\s*', '', svg_content, flags=re.DOTALL)
-            sections.append(
-                f'<ac:structured-macro ac:name="html">'
-                f'<ac:plain-text-body><![CDATA[<div style="text-align:center">{svg_content}</div>]]></ac:plain-text-body>'
-                f'</ac:structured-macro>'
-            )
-        except UnicodeDecodeError:
-            # Fallback to ac:image if decode fails
-            sections.append(
-                f'<ac:image ac:align="center" ac:layout="center" ac:alt="{diagram_name}">'
-                f'<ri:attachment ri:filename="{image_filename}" />'
-                f'</ac:image>'
-            )
+        # For now, use ac:image for SVG to avoid breaking pages
+        # The HTML macro with inline SVG can corrupt pages if SVG contains ]]> or other issues
+        sections.append(
+            f'<ac:image ac:align="center" ac:layout="center" ac:alt="{diagram_name}">'
+            f'<ri:attachment ri:filename="{image_filename}" />'
+            f'</ac:image>'
+        )
     elif is_image or ext == "svg":
         # Use ac:image macro to reference the attachment
         # Note: Confluence doesn't support base64/inline images, must use attachments
