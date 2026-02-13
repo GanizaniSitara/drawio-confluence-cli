@@ -856,6 +856,128 @@ def publish_all(ctx: CliContext, force_export: bool) -> None:
 
 
 @main.command()
+@click.argument("diagram", type=click.Path(path_type=Path))
+@click.option(
+    "--delete-local",
+    is_flag=True,
+    help="Also delete the local .drawio file",
+)
+@click.option(
+    "--keep-attachments",
+    is_flag=True,
+    help="Only unlink from state, don't delete Confluence attachments",
+)
+@click.option(
+    "--yes", "-y",
+    is_flag=True,
+    help="Skip confirmation prompt",
+)
+@pass_context
+def remove(
+    ctx: CliContext,
+    diagram: Path,
+    delete_local: bool,
+    keep_attachments: bool,
+    yes: bool,
+) -> None:
+    """Remove a diagram from Confluence and unlink from tracking.
+
+    This deletes the .drawio and image attachments from the Confluence page,
+    removes the diagram from local state tracking, and optionally deletes
+    the local file.
+    """
+    ctx.load()
+
+    # Check if diagram is tracked
+    rel_path = str(diagram.resolve().relative_to(ctx.workspace_root)) if diagram.exists() else str(diagram)
+    diagram_state = ctx.state.get_diagram(rel_path)
+
+    if not diagram_state:
+        # Try with just the filename
+        for path in ctx.state.diagrams:
+            if Path(path).name == diagram.name:
+                rel_path = path
+                diagram_state = ctx.state.get_diagram(rel_path)
+                break
+
+    if not diagram_state:
+        console.print(f"[yellow]Diagram not tracked:[/yellow] {diagram}")
+        console.print("Use 'drawio-cli list' to see tracked diagrams.")
+        sys.exit(1)
+
+    page_id = diagram_state.confluence_page_id
+    page_url = diagram_state.confluence_page_url
+
+    # Confirm action
+    if not yes:
+        console.print(f"[bold]Will remove:[/bold] {rel_path}")
+        if page_id:
+            console.print(f"  Confluence page: {page_url or page_id}")
+            if not keep_attachments:
+                console.print("  [yellow]Will delete attachments from Confluence[/yellow]")
+        if delete_local and diagram.exists():
+            console.print(f"  [yellow]Will delete local file: {diagram}[/yellow]")
+
+        if not click.confirm("\nProceed?"):
+            console.print("[dim]Cancelled[/dim]")
+            sys.exit(0)
+
+    deleted_attachments = []
+
+    # Delete Confluence attachments
+    if page_id and not keep_attachments:
+        console.print(f"[bold]Removing from Confluence...[/bold]")
+
+        try:
+            # Delete .drawio attachment
+            drawio_filename = Path(rel_path).name
+            if ctx.client.delete_attachment_by_filename(page_id, drawio_filename):
+                deleted_attachments.append(drawio_filename)
+                console.print(f"  [green]✓[/green] Deleted {drawio_filename}")
+
+            # Delete image attachments (try common formats)
+            base_name = Path(rel_path).stem
+            for ext in [".png", ".svg", ".jpg", ".pdf"]:
+                image_filename = base_name + ext
+                if ctx.client.delete_attachment_by_filename(page_id, image_filename):
+                    deleted_attachments.append(image_filename)
+                    console.print(f"  [green]✓[/green] Deleted {image_filename}")
+
+        except AuthenticationError as e:
+            console.print(f"[red]Authentication error:[/red] {e}")
+            sys.exit(1)
+        except ConfluenceError as e:
+            console.print(f"[red]Confluence error:[/red] {e}")
+            sys.exit(1)
+
+        if not deleted_attachments:
+            console.print("  [dim]No attachments found to delete[/dim]")
+
+    # Remove from state
+    ctx.state.remove_diagram(rel_path)
+    ctx.state.save()
+    console.print(f"[green]✓[/green] Removed from tracking")
+
+    # Delete local file
+    if delete_local:
+        local_path = ctx.workspace_root / rel_path
+        if local_path.exists():
+            local_path.unlink()
+            console.print(f"[green]✓[/green] Deleted local file: {local_path}")
+
+            # Also delete exported images
+            for ext in [".png", ".svg", ".jpg", ".pdf"]:
+                export_path = local_path.with_suffix(ext)
+                if export_path.exists():
+                    export_path.unlink()
+                    console.print(f"[green]✓[/green] Deleted export: {export_path.name}")
+
+    console.print(f"\n[green]Done.[/green]")
+    if page_url:
+        console.print(f"Page: {page_url}")
+
+
+@main.command()
 @click.argument("diagram", type=click.Path(exists=True, path_type=Path))
 @pass_context
 def links(ctx: CliContext, diagram: Path) -> None:

@@ -360,6 +360,37 @@ class ConfluenceClient:
             comment=comment,
         )
 
+    def delete_attachment(self, attachment_id: str) -> bool:
+        """Delete an attachment by ID.
+
+        Args:
+            attachment_id: The attachment ID to delete
+
+        Returns:
+            True if deleted successfully
+        """
+        try:
+            self._request("DELETE", f"content/{attachment_id}")
+            return True
+        except NotFoundError:
+            # Already deleted
+            return False
+
+    def delete_attachment_by_filename(self, page_id: str, filename: str) -> bool:
+        """Delete an attachment by filename from a page.
+
+        Args:
+            page_id: The page ID
+            filename: The attachment filename
+
+        Returns:
+            True if deleted, False if not found
+        """
+        attachment = self.get_attachment_by_filename(page_id, filename)
+        if attachment:
+            return self.delete_attachment(attachment.id)
+        return False
+
     def _get_media_type(self, filename: str) -> str:
         """Get media type for a filename."""
         ext = Path(filename).suffix.lower()

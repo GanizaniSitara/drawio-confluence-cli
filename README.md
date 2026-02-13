@@ -147,6 +147,14 @@ drawio-cli publish diagram.drawio
 | `drawio-cli publish <diagram> <page-id>` | Publish to a specific page (by numeric ID) |
 | `drawio-cli publish-all` | Publish all linked diagrams |
 
+### Removing
+
+| Command | Description |
+|---------|-------------|
+| `drawio-cli remove <diagram>` | Delete attachments from Confluence and unlink |
+| `drawio-cli remove <diagram> --delete-local` | Also delete the local .drawio file |
+| `drawio-cli remove <diagram> --keep-attachments` | Only unlink, don't delete from Confluence |
+
 ## Configuration
 
 Configuration is stored in `.drawio-cli/config.yaml`:
