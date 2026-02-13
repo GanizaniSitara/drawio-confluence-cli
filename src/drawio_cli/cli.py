@@ -707,13 +707,7 @@ def export_cmd(
 
 @main.command()
 @click.argument("diagram", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--page",
-    "-p",
-    "page_url",
-    default=None,
-    help="Confluence page URL (overrides stored link)",
-)
+@click.argument("page", required=False, default=None)
 @click.option(
     "--format",
     "-f",
@@ -741,14 +735,36 @@ def export_cmd(
 def publish(
     ctx: CliContext,
     diagram: Path,
-    page_url: Optional[str],
+    page: Optional[str],
     fmt: Optional[str],
     no_content_update: bool,
     force_export: bool,
     verbose: bool,
 ) -> None:
-    """Publish a diagram to Confluence."""
+    """Publish a diagram to Confluence.
+
+    DIAGRAM is the path to the .drawio file.
+    PAGE is an optional Confluence page URL or page ID (overrides stored link).
+    """
     ctx.load()
+
+    # Resolve page URL from ID if numeric
+    page_url = None
+    if page:
+        if page.isdigit():
+            # It's a page ID - resolve to URL
+            try:
+                page_info = ctx.client.get_page_by_id(page)
+                page_url = page_info.url
+                console.print(f"[dim]Resolved page ID {page} → {page_info.title}[/dim]")
+            except NotFoundError:
+                console.print(f"[red]Error:[/red] Page ID {page} not found")
+                sys.exit(1)
+            except ConfluenceError as e:
+                console.print(f"[red]Confluence error:[/red] {e}")
+                sys.exit(1)
+        else:
+            page_url = page
 
     console.print(f"[bold]Publishing {diagram.name}...[/bold]")
 

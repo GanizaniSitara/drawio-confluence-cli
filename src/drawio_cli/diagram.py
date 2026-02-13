@@ -157,7 +157,9 @@ def extract_links_from_graph_model(model: ET.Element) -> list[DiagramLink]:
         link = obj.get("link", "")
 
         if link:
-            label_text = extract_label_from_value(label) or f"Link {cell_id}"
+            # Get all attributes for placeholder resolution
+            props = dict(obj.attrib)
+            label_text = extract_label_from_object(label, props) or f"Link {cell_id}"
             links.append(DiagramLink(label=label_text, url=link, cell_id=cell_id))
 
     # Check for object elements (another variation)
@@ -167,7 +169,9 @@ def extract_links_from_graph_model(model: ET.Element) -> list[DiagramLink]:
         link = obj.get("link", "")
 
         if link:
-            label_text = extract_label_from_value(label) or f"Link {cell_id}"
+            # Get all attributes for placeholder resolution
+            props = dict(obj.attrib)
+            label_text = extract_label_from_object(label, props) or f"Link {cell_id}"
             links.append(DiagramLink(label=label_text, url=link, cell_id=cell_id))
 
     return links
@@ -188,6 +192,74 @@ def extract_label_from_value(value: str) -> str:
     text = " ".join(text.split())
 
     return text.strip()
+
+
+def extract_label_from_object(label: str, props: dict[str, str]) -> str:
+    """Extract label from an object element, resolving placeholders.
+
+    Handles:
+    - C4 model shapes (c4Name, c4Type, etc.)
+    - Generic placeholders like %name%
+    - Falls back to stripping HTML from label
+
+    Args:
+        label: The label attribute (may contain HTML and placeholders)
+        props: All attributes from the object element
+    """
+    # Priority order for finding a good label:
+    # 1. c4Name (C4 model shapes)
+    # 2. name property
+    # 3. title property
+    # 4. Resolve placeholders in label
+    # 5. Strip HTML from label
+
+    # Check for C4 model properties first
+    c4_name = props.get("c4Name", "").strip()
+    if c4_name:
+        return c4_name
+
+    # Check for generic name/title properties
+    name = props.get("name", "").strip()
+    if name:
+        return name
+
+    title = props.get("title", "").strip()
+    if title:
+        return title
+
+    # If label contains placeholders like %c4Name%, try to resolve them
+    if label and "%" in label:
+        resolved = resolve_placeholders(label, props)
+        # Only use resolved if it produced meaningful text
+        resolved_clean = extract_label_from_value(resolved)
+        if resolved_clean and resolved_clean != label:
+            return resolved_clean
+
+    # Fall back to extracting text from label
+    return extract_label_from_value(label)
+
+
+def resolve_placeholders(text: str, props: dict[str, str]) -> str:
+    """Resolve %placeholder% patterns using properties.
+
+    Args:
+        text: Text containing %placeholder% patterns
+        props: Dictionary of property values
+    """
+    def replace_placeholder(match: re.Match) -> str:
+        key = match.group(1)
+        # Try exact match first, then case-insensitive
+        if key in props:
+            return props[key]
+        # Case-insensitive lookup
+        for prop_key, prop_val in props.items():
+            if prop_key.lower() == key.lower():
+                return prop_val
+        # Return empty string for unresolved placeholders
+        return ""
+
+    # Replace all %placeholder% patterns
+    return re.sub(r'%([^%]+)%', replace_placeholder, text)
 
 
 def extract_links_from_html(html: str) -> list[tuple[str, str]]:

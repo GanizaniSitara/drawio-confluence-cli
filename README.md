@@ -96,10 +96,10 @@ If you already have a `.drawio` file attached to a Confluence page:
 # Download the diagram
 drawio-cli checkout https://wiki.company.com/display/SPACE/PageName
 
-# Edit it
+# Edit it (auto-publishes on close if linked)
 drawio-cli edit diagram.drawio
 
-# Publish changes back
+# Or publish manually
 drawio-cli publish diagram.drawio
 ```
 
@@ -142,8 +142,9 @@ drawio-cli publish diagram.drawio
 
 | Command | Description |
 |---------|-------------|
-| `drawio-cli publish <diagram>` | Upload diagram and image to Confluence |
-| `drawio-cli publish <diagram> --page <url>` | Publish to a specific page |
+| `drawio-cli publish <diagram>` | Upload diagram and image to linked Confluence page |
+| `drawio-cli publish <diagram> <page-url>` | Publish to a specific page (by URL) |
+| `drawio-cli publish <diagram> <page-id>` | Publish to a specific page (by numeric ID) |
 | `drawio-cli publish-all` | Publish all linked diagrams |
 
 ## Configuration
@@ -199,18 +200,32 @@ Credentials can be stored in `config.yaml` or set via environment variables. Env
 If a `.drawio` file is already attached to a Confluence page:
 
 1. `checkout` - download the diagram from Confluence
-2. `edit` - make changes locally
-3. `publish` - upload changes back to Confluence
+2. `edit` - make changes locally (auto-publishes when you close the editor)
+3. Or `publish` - manually publish changes
 
 ### Creating new diagrams
 
 To add a new diagram to an existing Confluence page:
 
-1. `new --page <url>` - create diagram and open in editor automatically
-2. `export` - export to PNG/SVG (automatic with desktop app)
-3. `publish` - upload diagram and image to Confluence
+1. `new <name> <page-url>` - create diagram, open in editor, auto-publish on close
+2. Or create manually and link with `publish <diagram> <page>`
 
-**Note:** The Confluence page must already exist. This tool doesn't create pages - it only attaches diagrams to existing pages.
+**Note:** The page will be auto-created if it doesn't exist (requires write permissions to the space).
+
+### Linking an existing local diagram
+
+If you have a `.drawio` file locally and want to publish it to Confluence:
+
+```bash
+# First publish links the diagram to the page
+drawio-cli publish my-diagram.drawio https://wiki.company.com/display/SPACE/Page
+
+# Or use page ID
+drawio-cli publish my-diagram.drawio 12345678
+
+# Future publishes just use the diagram (link is remembered)
+drawio-cli publish my-diagram.drawio
+```
 
 ### What happens when you publish
 
