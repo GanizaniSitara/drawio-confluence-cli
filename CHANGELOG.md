@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-02-13
+## [0.2.3] - 2026-02-13
+
+### Added
+- Automatic version bumping via pre-push git hook
+- Version bump script for manual major/minor/patch bumping
+- .gitattributes for consistent line endings across platforms
+
+### Changed
+- Dynamic version management in pyproject.toml (reads from __init__.py)
+
+## [0.2.0] - 2026-02-13
 
 ### Added
 - `remove` command to delete diagrams from Confluence pages
