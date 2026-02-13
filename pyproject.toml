@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "drawio-confluence-cli"
-version = "0.1.0"
+dynamic = ["version"]
 description = "CLI tool to manage draw.io diagrams with Confluence Server/DC integration"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -50,6 +50,9 @@ drawio-cli = "drawio_cli.cli:main"
 Homepage = "https://github.com/yourusername/drawio-confluence-cli"
 Documentation = "https://github.com/yourusername/drawio-confluence-cli#readme"
 Issues = "https://github.com/yourusername/drawio-confluence-cli/issues"
+
+[tool.hatch.version]
+path = "src/drawio_cli/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/drawio_cli"]

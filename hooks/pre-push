@@ -1,0 +1,32 @@
+#!/bin/bash
+# Auto-bump patch version on every push
+# To install: ln -sf ../../hooks/pre-push .git/hooks/pre-push
+
+set -e
+
+# Check if there are any commits to push
+if git rev-parse --abbrev-ref --symbolic-full-name @{u} > /dev/null 2>&1; then
+    COMMITS=$(git log @{u}..HEAD --oneline)
+    if [ -z "$COMMITS" ]; then
+        # No new commits
+        exit 0
+    fi
+else
+    # No upstream set, allow push
+    exit 0
+fi
+
+# Get current version
+CURRENT_VERSION=$(python -c "from src.drawio_cli import __version__; print(__version__)")
+
+# Bump patch version
+python scripts/bump_version.py patch
+
+# Get new version
+NEW_VERSION=$(python -c "from src.drawio_cli import __version__; print(__version__)")
+
+# Stage and amend the version change to the last commit
+git add src/drawio_cli/__init__.py
+git commit --amend --no-edit --no-verify
+
+echo "✓ Version bumped: $CURRENT_VERSION → $NEW_VERSION"

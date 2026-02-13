@@ -303,12 +303,25 @@ If all automated methods fail, you'll see an error with details about what went 
 # Install dev dependencies
 pip install -e ".[dev]"
 
+# Install git hook for auto-version bumping
+ln -sf ../../hooks/pre-push .git/hooks/pre-push
+
 # Run tests
 pytest
 
 # Run tests with coverage
 pytest --cov=drawio_cli
+
+# Manual version bump (updates src/drawio_cli/__init__.py)
+python scripts/bump_version.py [major|minor|patch]
 ```
+
+### Version Management
+
+The pre-push hook automatically bumps the patch version on every push. For larger changes:
+- **Patch** (0.1.x): Bug fixes, small improvements - auto-bumped on push
+- **Minor** (0.x.0): New features - `python scripts/bump_version.py minor`
+- **Major** (x.0.0): Breaking changes - `python scripts/bump_version.py major`
 
 ## Project Structure
 
