@@ -304,7 +304,8 @@ If all automated methods fail, you'll see an error with details about what went 
 pip install -e ".[dev]"
 
 # Install git hook for auto-version bumping
-ln -sf ../../hooks/pre-push .git/hooks/pre-push
+cp hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+# On WSL, fix line endings: sed -i 's/\r$//' .git/hooks/pre-push
 
 # Run tests
 pytest
